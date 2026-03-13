@@ -1,307 +1,638 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-    <title>WSO2 Support Tools</title>
-    <link rel="stylesheet" href="css/bootstrap.min.css" />
-    <link rel="stylesheet" href="highlight/highlight-11.9.0-default.min.css" />
-    <link rel="stylesheet" href="css/tools.css" >
-  </head>
-  <body>
-    <nav class="navbar navbar-dark fixed-top bg-primary flex-md-nowrap p-0 shadow">
-        <a class="navbar-brand col-sm-3 col-md-2 mr-0" href="#">
-            <img src="./images/wso2-logo-white.png" width="70px"/>
-            Support Utils</a>
-    </nav>
-    <div class="container-fluid">
-        <div class="row">
-            <div class="col-md-2 bg-light d-none d-md-block sidebar">
-                <div class="left-sidebar">
-                    <div class="nav flex-column nav-pills" id="v-pills-tab" role="tablist" aria-orientation="vertical">
-                        <a class="nav-link active" id="v-pills-base64-tab" data-toggle="pill" href="#base64" role="tab" aria-controls="base64" aria-selected="true">Base64 Encode/Decode</a>
-                        <a class="nav-link" id="v-pills-jwt-tab" data-toggle="pill" href="#jwt" role="tab" aria-controls="jwt" aria-selected="false">JWT Decode</a>
-                        <a class="nav-link" id="v-pills-url-tab" data-toggle="pill" href="#url" role="tab" aria-controls="url" aria-selected="false">URL Encode/Decode</a>
-                        <a class="nav-link" id="v-pills-json-tab" data-toggle="pill" href="#json" role="tab" aria-controls="json" aria-selected="false">JSON Formatter</a>
-                        <a class="nav-link" id="v-pills-xml-tab" data-toggle="pill" href="#xml" role="tab" aria-controls="xml" aria-selected="false">XML Formatter</a>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    <div class="modal" id="errorModal" tabindex="-1" role="dialog">
-        <div class="modal-dialog" role="document">
-            <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Notification</h5>
-                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                <span aria-hidden="true">&times;</span>
-                </button>
-            </div>
-            <div class="modal-body">
-                <p id="alertMessage"></p>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
-            </div>
-            </div>
-        </div>
-    </div>
-    <main role="main" class="col-md-9 ml-sm-auto col-lg-10 px-4">
-        <div class="tab-content" id="v-pills-tabContent">
-            <div class="tab-pane fade show active" id="base64" role="tabpanel" aria-labelledby="v-pills-base64-tab">
-                <div class="container-fluid">
-                    <div>
-                        <div class="col-md-12" style="text-align: center;">
-                            <h1>Base64 Encode/Decode</h1>
-                        </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-12">
-                            Input
-                        </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-12">
-                            <textarea id="textAreaB64Input" style="width: 100%; height: fit-content;"></textarea>
-                        </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-1">
-                            <button type="button" class="btn btn-secondary" id="btnB64Encode"> Encode </button>
-                        </div>
-                        <div class="col-md-10"></div>
-                        <div class="col-md-1" >
-                            <button type="button" class="btn btn-secondary" id="btnB64Decode" style="float: right;"> Decode </button>
-                        </div>
-                    </div>
-                    <div class="row">
-                        &nbsp;
-                    </div>
-                    <div class="row">
-                        <div class="col-md-12">
-                            Output
-                        </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-12">
-                            <pre id="preB64Output">
-                                <code id="preB64OutputCode" class="language-json">
-</code>
-                            </pre>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="tab-pane fade" id="jwt" role="tabpanel" aria-labelledby="v-pills-jwt-tab">
-                <div class="container-fluid">
-                    <div>
-                        <div class="col-md-12" style="text-align: center;">
-                            <h1>JWT Decode</h1>
-                        </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-12">
-                            Input
-                        </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-12">
-                            <textarea id="textAreaJwtInput" style="width: 100%; height: fit-content;"></textarea>
-                        </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-1">
-                        </div>
-                        <div class="col-md-10"></div>
-                        <div class="col-md-1" >
-                            <button type="button" class="btn btn-secondary" id="btnJwtDecode" style="float: right;"> Decode </button>
-                        </div>
-                    </div>
-                    <div class="row">
-                        &nbsp;
-                    </div>
-                    <div class="row">
-                        <div class="col-md-12">
-                            Output
-                        </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-12">
-                            <pre id="preJwtOutput">
-                                <code id="preJwtOutputCode" class="language-json">
-</code>
-                            </pre>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="tab-pane fade" id="url" role="tabpanel" aria-labelledby="v-pills-url-tab">
-                <div class="container-fluid">
-                    <div>
-                        <div class="col-md-12" style="text-align: center;">
-                            <h1>URL Encode/Decode</h1>
-                        </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-12">
-                            Input
-                        </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-12">
-                            <textarea id="textAreaUrlInput" style="width: 100%; height: fit-content;"></textarea>
-                        </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-1">
-                            <button type="button" class="btn btn-secondary" id="btnUrlEncode"> Encode </button>
-                        </div>
-                        <div class="col-md-10"></div>
-                        <div class="col-md-1" >
-                            <button type="button" class="btn btn-secondary" id="btnUrlDecode" style="float: right;"> Decode </button>
-                        </div>
-                    </div>
-                    <div class="row">
-                        &nbsp;
-                    </div>
-                    <div class="row">
-                        <div class="col-md-12">
-                            Output
-                        </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-12">
-                            <pre id="preUrlOutput">
-                                <code id="preUrlOutputCode">
-</code>
-                            </pre>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="tab-pane fade" id="json" role="tabpanel" aria-labelledby="v-pills-json-tab">
-                <div class="container-fluid">
-                    <div>
-                        <div class="col-md-12" style="text-align: center;">
-                            <h1>JSON Formatter</h1>
-                        </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-12">
-                            Input
-                        </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-12">
-                            <textarea id="textAreaJsonInput" style="width: 100%; height: fit-content;"></textarea>
-                        </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-1">
-                        </div>
-                        <div class="col-md-10"></div>
-                        <div class="col-md-1" >
-                            <button type="button" class="btn btn-secondary" id="btnJsonFormat" style="float: right;"> Format </button>
-                        </div>
-                    </div>
-                    <div class="row">
-                        &nbsp;
-                    </div>
-                    <div class="row">
-                        <div class="col-md-12">
-                            Output
-                        </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-12">
-                            <pre id="preJsonOutput">
-                                <code id="preJsonOutputCode" class="language-json">
-</code>
-                            </pre>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="tab-pane fade" id="xml" role="tabpanel" aria-labelledby="v-pills-xml-tab">
-                <div class="container-fluid">
-                    <div>
-                        <div class="col-md-12" style="text-align: center;">
-                            <h1>XML Formatter</h1>
-                        </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-12">
-                            Input
-                        </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-12">
-                            <textarea id="textAreaXmlInput" style="width: 100%; height: fit-content;"></textarea>
-                        </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-1">
-                        </div>
-                        <div class="col-md-10"></div>
-                        <div class="col-md-1" >
-                            <button type="button" class="btn btn-secondary" id="btnXmlFormat" style="float: right;"> Format </button>
-                        </div>
-                    </div>
-                    <div class="row">
-                        &nbsp;
-                    </div>
-                    <div class="row">
-                        <div class="col-md-12">
-                            Output
-                        </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-12">
-                            <pre id="preXmlOutput">
-                                <code id="preXmlOutputCode" class="language-xml">
-</code>
-                            </pre>
-                        </div>
-                    </div>
-                </div>
-            </div>
-          </div>
-    </main>
-    <script src="js/jquery-3.4.1.slim.min.js" ></script>
-    <script src="js/popper.min.js"></script>
-    <script src="js/bootstrap.min.js"></script>
-    <script src="highlight/highlight-11.9.0.min.js"></script>
-    <script src="highlight/highlight-11.9.0-json.min.js"></script>
-    <script src="highlight/highlight-11.9.0-xml.min.js"></script>
-    <script src="js/scripts.js" ></script>
-    <script>
-        hljs.highlightAll();
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Support Utils</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20,300,0,0" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
 
-        $(document).ready(() => {
-        let url = location.href.replace(/\/$/, "");
-        if (location.hash) {
-            const hash = url.split("#");
-            $('#v-pills-tab a[href="#'+hash[1]+'"]').tab("show");
-            url = location.href.replace(/\/#/, "#");
-            history.replaceState(null, null, url);
-            setTimeout(() => {
-            $(window).scrollTop(0);
-            }, 400);
-        } 
-        
-        $('a[data-toggle="tab"]').on("click", function() {
-            let newUrl;
-            const hash = $(this).attr("href");
-            if(hash == "#base64") {
-            newUrl = url.split("#")[0];
-            } else {
-            newUrl = url.split("#")[0] + hash;
-            }
-            newUrl += "/";
-            history.replaceState(null, null, newUrl);
-        });
-        });
-	</script>	
-  </body>
+<header>
+  <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAQAAAAEACAMAAABrrFhUAAAAIGNIUk0AAHomAACAhAAA+gAAAIDoAAB1MAAA6mAAADqYAAAXcJy6UTwAAAMAUExURQAAAP9VHPNPJPFOIvJOIvJOI/BPI/BNJPFOI/FOI/FOJPFOI/FOI/FOIvFNI/FOI/FOI/BOJPBOI/FPIv9mM/NLI/FPIvJOIvFNI/FOIvFOI/FOI/FOI/FNIvJPIfJNI/FPI/FOIvFOI/ROIfJPJPFOJPFOI/FOI/FOI/FOI/FNI/FPI+5NIv9AQPJNIvJPJPFOI/JOI/9JJO1SJPBOIvFNIvFOI/BOIvZMJvJNJvFOI/FOIvVOJ/FPJPBOIvJNI/JRKPBQI/BOI/FOI/JOI/BPIv8AAPRKIPBNIvFOI+1PI+9OJPFOJPFOI/FOIu9QJfFOJPJPIvFOI/BPI/JOI/+AAPBOJPFOI/FOI/BOI/9VAPBNJPFOI/FOI/BNI/FOJPFOI/BPJPFOI/JOI/FOI/BNI/FMIu5VIvJRIvBNJPJOIfFNI/FNIvBMIvNJJPFPJO9QIPFOI/FOI/BOI/JOI/NNJPFPI/FOI/BOI/FOI/FOI+hGLupVK/JNJPJNI/JOI/FOI/FNJP9VK/JOJPFOI/BOIfFOI/BNJO9QIPFOI/FQIfFPJfFOJPFPI/FNI/FOI+ZNGvBOI/9AIPBOI/BQJPJNI/FNJPFOI/FOIvFOI/FNJPVSH/FOI/JOI/FNIvFOI+9MIfFOI/FOI/BOI/FOI/BPI/FOI/FOI/JNJPFNJPJNIPFOI/FOI/FOIvBPI/BOJPFOI/FOIvJPJPFVHPJOI+9QJPFOI/RPIu9OI/FOI/BOIvBPI+5OIfJNIvNOJfJPI/FPJPFNJPFOI/FOI+9KIfBPIvBNJPJOI/FPI/FOJPNRI/FOI/BLHvFPIvFOI/FPI/JPI/JMJPFOI/JOIvFNJPFOI/FOI/JOI/BNJ/JOJOtOJ/FOI/FOIvFPIvJOI/BOI/NNJPBOI/FOIvBOI/BNIvFNIvFOI/BOIvFPI/FOI/JPJPJNI/BLJu1JJPFOI/FOI/JNJPFPI/FNI/FOI/FPIvFOJPFNI/NRJfJOJPFOI/JPI/FOI+9OIvFNJPFOI////8UoqlsAAAD+dFJOUwAJKktidouescTX3e701sOwnYpKBSxahqjI6MenWT10os/5F02Au/f7zJFeHgQ8iP6ZBxxpsvNoGxT9bxprwb8TM/b4qkQBGHfbHTGk+qMws2HV018CVdnfZgNW59SblsJUSNGCQiUPJkYntXBDFXEQ8etlcyu86cDmlwsMT5i9JO0G0KFFzjIgoDY3XOBt4QrSCOQjUIF9f/WlGcs7NcUv8LSt8le3/GNqKM2DlHt54t5kEr5A7y1B7DSvLkw+OkddWHwfeHp1ko8WthG5bG5ROdirOOra4yFyDalblZquP4yNiVOOkJzGpqxgIg6T3IefhMp+ukkpTuWFuFLJOv5VXQAAAAFiS0dE/6UH8sUAAAAHdElNRQfqAwwPKQVJDXt1AAAAJXRFWHRkYXRlOmNyZWF0ZQAyMDI2LTAzLTEyVDE1OjQxOjA1KzAwOjAwUD4xhQAAACV0RVh0ZGF0ZTptb2RpZnkAMjAyNi0wMy0xMlQxNTo0MTowNSswMDowMCFjiTkAAAAodEVYdGRhdGU6dGltZXN0YW1wADIwMjYtMDMtMTJUMTU6NDE6MDUrMDA6MDB2dqjmAAAU+0lEQVR42t1deXwVRbZuGBRjFlADSFSy7yQkbEKiIWS5ZMAEIl4gYZWgLMqSIEQMDiEsCiKEOA9NWEQBo8AwyioDo+AuoE/Hhw6MD3ijbxCR0Xkq+GZ89ze5uSS551RVd9ft6qo77/vvVnWfpW539alT55zSNMlo1/4XHa65tuN1AdcHBgYFBbtcwUFBgYEhnTrfcOM1HW5q3062PPIQ2qVrt5u7h7kMEHbLrd1u6xKqWlqxaNcjPCIyykh1b0RFRoT3+P/xNETHxMbF8+jehoTEpOSequW3hJTUXolpvinfisD0mN6q9fANffr2C7ao/FX073z7ANXa8GJgclyGGO09yAjIvEO1Thza35klVPurYzCob7ZqzUxhcHqOeO09yM3Ld6hWzwBDCn5pl/Ye/DJ2qGoddTDsrkJ71XejsGi4aj0ZSB1h9ZNnFgEx/vcmpBTfLUn7Zoy8J0W1xgDOUaNlqu/GmJJS1Vq3qT82hFf8hHHjs/rl5U1InzgxfUJeXr9Jd4cl8NIYf6+fvAiTy8wLPa5TxJQO990/lUZn6rT7Okwp6mS4XmxD5HTVujdhxgPmhI1KvOHBmQPNUJw1c3bHRJOfk373K1Z/Tq9cE2KWx8Xmc65tQwdn5lWYIF2YNJWPsFA45hrLmBv30Dwf31VHl/D5xl6EymJlU8G0h42EW/BITJU1Hgsf/dU4Iy6LqpWon5JpsNpdHBEj5GPtTE0yGIOc2Br5+g9eoi/T0pkCv9OlyyL0V1jLH5OsvjNT9+UMKcgWzXFqyXI9jgmxUu2ixzvpyBK1YqU9XJ9YqjfqWRLdh6OC2HKUJ/Wxj3F07GIdzqskqV91F1uIJ1cvtJf5wsw1bO4ramXoX72WKUBlQZ39/ENLnmIKUPZr+/nfxHz8Kwok7WTUlCxgvgb/ZjNv5zqW0yP4aYsmDw+qnqlniJHxjNNWxv0YfNOKJHvuhzaw/onONv4R6xMZTDdslKu+G5ueZQizxLbP0LwnGS9epq2PHQuOknK6PE9ttofhzOfo/J5X5qhev4Uu0dbJdnDrSvdRhI1Spb4b2+j+o6ht4lnNpe92vTBEpf6aNus6qliNL4pm9BJV/5xM9X7JZOqqPO1BsVwKqOOcOEO19m5s30EV7hmRPHZSWfxGgRuCht6PUMVbJ47DLhr9+A6qFW/DKqph+FtR5FfTqL+8SbXW3hj+Ck3Gh8QQ300zOufvUa0zRPZe2kxYLIJ0V9r839HvAvlqVtC+hgLsgX0UN1RarGp1acikPKmF+Vaptt9PUo2S5XvixFhKPGL5AWs011PWP/XLVGvKwr7+pLRjoq1QrO1OUuz/qmo92UilrA8TLfgHnBT/x8HfqdZSD5soXuNDvi/W15HUwiy+U3bjMGV5+LSvxH5PfgD3D1OtoREOHCSEzrjJN1L3kx+Acr8y/+gYTood5JO3vGokOf+/plo7M3idXB+X1fpAh9z/ybVsVcjBEdJ268hPZRVBJO2oas3M4g3SJnyDl8ZQcgPoTdV6mUcsOXu/xUfBOUjEU6QMDnJlNIkvfuBNgsB8v1v/6aGGXB2/zXP/YMIF/oqfrf+NkE0sYgo5TJgUws0YP1i1RrzYTHjJlph/ht8hnh8hrhW5ID9j75q9dRoRkfWeam18AeErzqk2d6ODiH9M9BP/Nx96R2I9FpnbxpmL7wv2i/0PfrQnnmRTb/IcIv63RLUmvuJOrEmlmcjq9/FdnVXr4TMchEPnRuObZmATYJypIH//xLFKpExUteE9x/GgCd//P9E34oNDsfOkjEBXrM11Rnfk4zueFyySY7ZnuZ7WcELGCBDhA0cMxMMx4OWCI44cN7SSHp8tYQB6bkUK7dD/FI7FA3a7YIE+9KJ9XMIAaP+ONfpI7+rSEHR1d8HxX1XAYScj6cuJQ/vW6ql0FF2cJjr+Dxrot0oYAO1j7B7S2TAt/QO6NkK0NJ8A8vulJDncjJQazU7kKUaXBouOfw1FoYb/IWMAemKLmLm368D5zz5vqbCwzG4GVOANrjLWh+AX6MKTwpMfkhCHSVIGYCG2B1mTL/ajZQoXBZeXSJCT9vkuYvsB/bLNaLpcIDz/ob0L41EpA1CHc0zoNSga0FV9hQtChlv+RsoAENbQUtpFQ9Ay8EnxbiAy2e5TOQNQ9xlkG3WMctFvkWwfChdjD6VGwh/ljMApxJbiH3WgCSpIfP7bUVJ/Wd6m02jPfDT5JZyJJOsmXoo/UQbgEzkDoN2I+JIb/chgLBSfeBNKibiTZA1r2gC0ZV6ELxiIKkGsEC/DTBcNUqzhJkRAtjnYHfMhksuG/Of3qQMgxxpuWhQaTD5ZsLvMBhE+pQ7AJEkDoCFf13zYu74Rdt8pXoDtVP1lWcOalgn5Nkbr9ebY4LB8lz4AkqzhJisERRK/BHpRFqYNUyB+yVohyRomTP2Hvfv6oJDImeLZ72GVypJkDWvaEcg3w7tG50uw76QNpdo+d7EgyRrWUk5Cvt7fAbSH9p82sL+VOQDS9l7PQL5n23pqUJz9OfHMU9hlR2RZw9gS29q23EX7YeNsME9fZeovzRrWSlEk+b7Wnv+CHRNtYP5n9gBIs4bxO/BFawfyBsfYwFuv4qQsa1j7CPJd29IeDdujbKiEU62jvzxr+DR0eqW1+IW+hPLE2cD6Ib0BkGYNayj8q8UI/W/YfMoGzoP0BkCaNay9Dfm2BMzcApttiN2Ygxyui+BPO+wOKoZDvs96WttBZ0mFDTURboOMA2Pgb2nWsBMmleV6Cl+9BqUxjKLxAWgd8pcq5H+SZQ3jCCjP7n84bCwQz7YUZXLl46WhNGt4F226K4KNqeLZnoMcymtwPoI0a3gf5OtZ9sO6yLk2FIS7FrLN07SVsEWaNYzmux3utlD4Pm6wge31UN3kptkIxeM+IWkANJgJEe9e9x+AopwXz/TXkEOG2wBDmyTSrGGUTNReIzwV4oMCtNmQQ4C7bTdsmyRrAJBJ6g6Y6gab7hPPFJk9zdlLfWCbNGt4OuS7UyP2xGYJ5zkV7Up1aW5FAWmyrOEhkG1DUxOskbBAPM9tkOeTntb3YKs03zB0DH7V1AIjiCaJZ1kEVb2af6TKGoYLn6b/uwpGBkUI51iKvnhXQ7RUWcMXANe0Om0elENgAa6r6AEZ9G85Oi0LtsuyhtGcP0O7CTaILxD2BWTwdUu7ImsYpYRNxh9k8SVikMPxYku7ImsYecCLtWtgQ7Voht9A+hmtm7KKrOFpkGs4XqhcEs0Q7Tt/1dajxho+Abn20jqC34XC3UFxkOE7bT1qrGEH3KSdgLKKxonmdwmZgV5liBRZw9ASOosiA0aKZjcKarnGu0+NNRyCnjs4SWeJZrcUKvlX7z411jCM1x2pfQt+9xPMzYlC9Y94dyJreLScAXgeMP1Ug2HEos2RjVDHYOBvU2MNn0XvJPyLGgRz+w6qeBb2ZsFeOdYwjNQYp8E0JtG1clA5LpS/r8QahrNSkAZTqn4lltlbUMMMVIhciTV8BvCs12CEpOBiIauhht1RtxJr+K+AZaO9A/ABVHAX7ldhDeMB8OUVKD1hDgPQNE/kKr0I+zuxGPZe/40JmAvswK8AnAT/ZoLC43nGhwBS8TKx0OgJLyikLsWcn2eZPH+yMt1E5UQ8CXJ/Bmf2NycNCUrwFdozolnD0YanGnohyjjVDX8GeQ2hjfEc8kBQSnsaW8OnR/IxMYxzx4YQpykcbXj+IxPBlG3X38NLKL7hdE4uhUbHsGJTmHMx1MAjDERnCrmFaDohrOGe3McRG21u4sVQAPh9t8Hd03lEQdhNI4hecMIa/h9uNkYhPnARnqV1Br/D9G92WjhgPG09jeIueNHXqDt0AT8jg7pH0Pjaot0AfifoD992HkEQvqdS3AQvCkLW8Jf8fA7q1xJ3QsvvDHbb6/ulTqRxSILwA10eFD6E4oZ/5OczW/8B2AOv7sbpFl9uXhCMLnSKutZwNf+ARxokexBucWSNGoQH7DYvCcIgcxShNXwjN5tGowUVquJxkXNrLCXAvCwA9ayq9HrWcO+T3HzCDfQnt8ZQVYcpBvcf22FeGC8EX2ZS1LGGb+Pm82cj/cnN0Xac2+O13YI5BPIg7YUrbII61jDPKsCN514ykh4vBdLqcIBEJ2MSVT89+F0vDuw6quvtZFvDV9AU+ECBPlZlGwuPAmL+l2gRvjVkPJ5M3/Bf0HM0TQQ7aAe548VRkNQxyyx4kQUFaLWG26HzQhaJYHYHpHlXU9PfYZMNSaMGYPmGL6I3fKwIZmgx457z0VQ72zIPXrB8wyiP42RvS1yuAqVwu+uFdoFN8qvoM3zDh9EDIKaoCSoksV0jgqUTpQ8AwxqeiKbAaiG8oC3fHCytwQrUhbXSB4AaKbEQHRolpv5mLXSvev5ttIPdQ/oAUCMlStAbICZ6AGXwet53lDLDdRKDGKBIiZ/cbagU6AIxB1ygL44nZaYHbBwhfwCQNeyOotiEHgBBJxz+A1J9vbmxN5wFg+QfJE6JlDgPmxp7CmHkhNtALelB6IPbxRoTH0Baw1PRiquzGEbDINWAq80oe95wSS0eWVCCEqKu02XrPNxAFfN6XW1GWeXzLfHwCYQ1vBY2rBEUOYAGuqVOwDHYHHVa+gBga/g19AAIOkL5Ekqfb82OGQ/Z/SR9ALBvGD0AhYKOuP8Zkl3S2oHihR+RPgDUUoNt+JMgLmfoUwBRXiVMVh5nG/S9zYIy2UpR0OK51p4aVIRf/rmyffT0/1ZQBDfyiJd7GZfoHAYF78AfdAZA0Bnq2Lja4tXVF3ZV2FBKywDvsfXPFZTKGIpm2rlefQNQMTX5Z0vHsAegyDr1ZlyGZDPAbjUqeRwhfQCwNewFUQUNUDWzvaBzNey0o6CiAbJY+ocImgKzUXATPD1lCCqpKb6stBHeZA2AKFEehGQbkf8fFfpZ6xsTC1jJ0F/Yw4jM3R9RN/oO2FFWVx/OCvoAiCro8Dqi+yLqz0aT0FKfuFgBwxoWddh3EXqw5uAL0BxpQ2ltA9Ct4SXWCTejD4rHI//g+xDn72QPAN0aFpVFgpw+FN+3AxV+LheeQ2oEmjW8VZBv4hI634dSXh9XWrOjmoo+aNawqDJruKozze0XjWLS1wjZjOQAzRrmOCxZD/iUFeoRG3iedJmINxEKijX8lXWqzUBGECMt4jA+ZqdW8ghkEQNwjxjCVaicrGsz/TqU6C09VICwhvfXiiGMgkFdLzCum4yuq5DsHias4ffF0CWO2mJFwThwcsYzcgeAsIYFFffcichGMq+8B11ZP1TuCCBreJB1im48jo/b68q8lDhwUXQqsQGQNfyGGKqfIKVG6zi9cQ38NLnREvCYAzFRUdpGHHGud5CyEy2aXd/L3SsH2/diZqBSHOFfpqvSvXgituG0FR1s9rKFvhVT4RvbQAaxNo5IdPlWufNgcqtrLqy9EII9cZpnooGLkTgO6gGpA6BNftnD9riggSfOnzf0+BN3bDPDRxxqtp3/R8MPw60TagZxsskWw1vux5nRYeJrTEpDNE45yf3G+KZr8aAdt6HYuBw4RmBdzMTbniayg8UfPioJq7EmYabcXPj8aVf9FTO3+R/mYRvYddTUfY5F+L7lsp1DQlBXhvX40eTL/EciLUpBwIB1TCCeZBP1JTwgzwd+0eyt/oO5hBLmAy1SEvG98b9TrQ8vhhETgFFSrTceI6qWjMlWrREfZq3BGkRt5rkfn8Lscu0VfxC1jaghcy6v4SLg3EsQuPAvZA85lhLiZ3HG/vVZTJD4gY+CSkwhhN/PHW9PeAZcacmq9TILwpTzaUm3giASNV21ZuZwmSw8dcYHMnVkonzOOdW6mcFGMr09sp0vhN46SBAqFxWvYSNWbiXEXuxjsc5ljQSp/YK2a+3DAXL2zpjsK7EfyMkk7LBqDfWxuZKU+R2fqTk7k9QW+/VbsJL8/11fWzBg2t1C0guWn2BvGq+Vk/JuqLJCccgYkmL9EdV6snA5h5Q20GJFiCuU84ITpB0Ox4eLlMKTi7dbpXqOFsad5IfrAkcspexUoYD3dVsjZQSW+t3asHcRRczGe0WQLqYV9NqbrVpjiFm0mkMZgmKM7qTQdn0mPZxaD4+NockoLMhpNo167m7rhEUhOYcmocBKCOto9F2P+Im3vG4CVTxBJQc8KKCyGO8XdvGVSKpwgv03t2fQmMRnKv8eOkrqaZKlCQ91/pxe3/aD9dZJW8GsEVSxGoutk8bYRq8oXnmbSv0/p5dczBXy/cfYyMjqOf6WKvXvOESXKGifPfyqP6Xzqy+Qn27eBGfJVro8r1i2/1kYyKooukN+9SXtie4MYf4v2jpxFmrPMpim3Symzo1pPJ7HkMT1tU8OULNwPJ3B4JuzTkxcnymc3pnDEKPxHbs/zK9Wsob+YEGtHPVrM8OYMhyxn/3Q71ncXScLbH38PKgpYRdcXy7lsKp2HZkCuD47ZXO23aXwp9jcz9RZZ2AKXy5mC7E1ycbpcEhsEJvzcxJNsqGD2HK4CiM+tofrx0V6p80sGiBP/6avQabuUTvXFwy0zgNiTskSPY4JsbKL4A3TLzIe33BEYCWW0MsXcnXZbdgsWf0mpGQaHDgUFBEjpAxkaWpSpT6nHDW2uFa9yGWAyvSPLH4VLv18xrDG/o8mIqDtgaM4zEg4V+GgguE+vp7OYW8/bHzKzjilgStVsWYOnuofFxvDeahubWrBiMUmSBcmSU/zR6jubEJMt6Q7Vjy0zFRZvPXTw5cuN3m82lllT78X8jkOnaj46sLf5+bP2EOjs2dG/txuF245aJ7aBkFl5qzC8fNa80J70FgZ0ul4Xl7H9IkT0zvm5R3vFFLZyEuj7FHlHtm2IYgp4xXfKkKS1Xz6WChdJXUIIrvKr35siNQRFs6h4kJAjP88/ACHl/p4GCcPolYcsC6pbThRwnlAJC9GF8g/BIUTg9P5DyIyidy8fD999iFOlMzn/qYZozFu9xzVmplHdvII7rMy9ZARkCmouLI83FFydqt1zd0o3zJX8Rasrwh99QvL1sGSXvvEHC6hCpfyY+N8PKo4ITFp1L9w5rYX6lJPrdiRy6N7/I6/ndroJxE4opByZdvOhmcNT5Fd8OxdU8ZekV/ZWRrqtl8uDu91/tCkkYGBFUH9Xa7+QRWBgSMnHTr/XfjFydtlbW204p85lZtRtudgkgAAAABJRU5ErkJggg==" alt="WSO2" height="32" />
+  <h1>Support Utils</h1>
+  <span class="spacer"></span>
+  <button id="theme-toggle" onclick="toggleTheme()">🌙 Dark</button>
+</header>
+
+<div class="main">
+  <nav>
+    <div class="nav-category open">
+      <button class="cat-header" onclick="toggleCategory(this)">
+        <span class="material-symbols-outlined cat-icon">sync_alt</span> Encode / Decode <span class="cat-arrow">▾</span>
+      </button>
+      <div class="cat-items">
+        <button class="active" data-tab="b64enc">Base64 Encode</button>
+        <button data-tab="b64dec">Base64 Decode</button>
+        <button data-tab="urlenc">URL Encode</button>
+        <button data-tab="urldec">URL Decode</button>
+        <button data-tab="htmlenc">HTML Encode</button>
+        <button data-tab="htmldec">HTML Decode</button>
+        <button data-tab="b64urlenc">B64 URL Encode</button>
+        <button data-tab="b64urldec">B64 URL Decode</button>
+        <button data-tab="jwt">JWT Decode</button>
+        <button data-tab="saml">SAML Decode</button>
+      </div>
+    </div>
+
+    <div class="nav-category open">
+      <button class="cat-header" onclick="toggleCategory(this)">
+        <span class="material-symbols-outlined cat-icon">data_object</span> Format <span class="cat-arrow">▾</span>
+      </button>
+      <div class="cat-items">
+        <button data-tab="jsonbeautify">JSON Beautify</button>
+        <button data-tab="xmlbeautify">XML Beautify</button>
+      </div>
+    </div>
+
+    <div class="nav-category open">
+      <button class="cat-header" onclick="toggleCategory(this)">
+        <span class="material-symbols-outlined cat-icon">add_circle</span> Generate <span class="cat-arrow">▾</span>
+      </button>
+      <div class="cat-items">
+        <button data-tab="hash">Hash</button>
+        <button data-tab="pwgen">Password</button>
+        <button data-tab="uuid">UUID</button>
+      </div>
+    </div>
+
+    <div class="nav-category open">
+      <button class="cat-header" onclick="toggleCategory(this)">
+        <span class="material-symbols-outlined cat-icon">handyman</span> Utilities <span class="cat-arrow">▾</span>
+      </button>
+      <div class="cat-items">
+        <button data-tab="regex">Regex Tester</button>
+        <button data-tab="diff">Diff Viewer</button>
+        <button data-tab="timestamp">Timestamp</button>
+        <button data-tab="httpstatus">HTTP Status</button>
+        <button data-tab="cors">CORS Builder</button>
+      </div>
+    </div>
+  </nav>
+
+  <div class="content">
+
+    <!-- ═══ Base64 Encode ═══ -->
+    <div class="tab-panel active" id="tab-b64enc">
+      <div class="panel-title">
+        <span class="icon">B</span> Base64 Encode
+      </div>
+      <div class="io-grid">
+        <div class="io-box">
+          <label>Input (Plain Text)</label>
+          <textarea id="b64enc-in" placeholder="Enter text to encode…"></textarea>
+        </div>
+        <div class="io-box">
+          <label>Output (Base64)</label>
+          <textarea id="b64enc-out" readonly placeholder="Encoded output will appear here…"></textarea>
+        </div>
+      </div>
+      <div class="err-msg" id="b64enc-err"></div>
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="b64Encode()">⚡ Encode</button>
+        <button class="btn btn-secondary" onclick="copyText('b64enc-out')">Copy Output</button>
+        <span class="spacer"></span>
+        <button class="btn btn-danger" onclick="clearIO('b64enc-in','b64enc-out','b64enc-err')">Clear</button>
+      </div>
+    </div>
+
+    <!-- ═══ Base64 Decode ═══ -->
+    <div class="tab-panel" id="tab-b64dec">
+      <div class="panel-title">
+        <span class="icon">B</span> Base64 Decode
+      </div>
+      <div class="io-grid">
+        <div class="io-box">
+          <label>Input (Base64)</label>
+          <textarea id="b64dec-in" placeholder="Enter Base64 string to decode…"></textarea>
+        </div>
+        <div class="io-box">
+          <label>Output (Plain Text)</label>
+          <textarea id="b64dec-out" readonly placeholder="Decoded output will appear here…"></textarea>
+        </div>
+      </div>
+      <div class="err-msg" id="b64dec-err"></div>
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="b64Decode()">⚡ Decode</button>
+        <button class="btn btn-secondary" onclick="copyText('b64dec-out')">Copy Output</button>
+        <span class="spacer"></span>
+        <button class="btn btn-danger" onclick="clearIO('b64dec-in','b64dec-out','b64dec-err')">Clear</button>
+      </div>
+    </div>
+
+    <!-- ═══ URL Encode ═══ -->
+    <div class="tab-panel" id="tab-urlenc">
+      <div class="panel-title">
+        <span class="icon">%</span> URL Encode
+      </div>
+      <div class="io-grid">
+        <div class="io-box">
+          <label>Input (Raw)</label>
+          <textarea id="urlenc-in" placeholder="Enter text or URL to encode…"></textarea>
+        </div>
+        <div class="io-box">
+          <label>Output (Encoded)</label>
+          <textarea id="urlenc-out" readonly placeholder="URL-encoded output will appear here…"></textarea>
+        </div>
+      </div>
+      <div class="err-msg" id="urlenc-err"></div>
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="urlEncode()">⚡ Encode</button>
+        <button class="btn btn-secondary" onclick="copyText('urlenc-out')">Copy Output</button>
+        <span class="spacer"></span>
+        <button class="btn btn-danger" onclick="clearIO('urlenc-in','urlenc-out','urlenc-err')">Clear</button>
+      </div>
+    </div>
+
+    <!-- ═══ URL Decode ═══ -->
+    <div class="tab-panel" id="tab-urldec">
+      <div class="panel-title">
+        <span class="icon">%</span> URL Decode
+      </div>
+      <div class="io-grid">
+        <div class="io-box">
+          <label>Input (Encoded)</label>
+          <textarea id="urldec-in" placeholder="Enter URL-encoded string to decode…"></textarea>
+        </div>
+        <div class="io-box">
+          <label>Output (Raw)</label>
+          <textarea id="urldec-out" readonly placeholder="Decoded output will appear here…"></textarea>
+        </div>
+      </div>
+      <div class="err-msg" id="urldec-err"></div>
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="urlDecode()">⚡ Decode</button>
+        <button class="btn btn-secondary" onclick="copyText('urldec-out')">Copy Output</button>
+        <span class="spacer"></span>
+        <button class="btn btn-danger" onclick="clearIO('urldec-in','urldec-out','urldec-err')">Clear</button>
+      </div>
+    </div>
+
+    <!-- ═══ HTML Encode ═══ -->
+    <div class="tab-panel" id="tab-htmlenc">
+      <div class="panel-title">
+        <span class="icon">&lt;&gt;</span> HTML Encode
+      </div>
+      <div class="io-grid">
+        <div class="io-box">
+          <label>Input (Plain Text)</label>
+          <textarea id="htmlenc-in" placeholder="Enter text to HTML-encode…"></textarea>
+        </div>
+        <div class="io-box">
+          <label>Output (HTML Entities)</label>
+          <textarea id="htmlenc-out" readonly placeholder="HTML-encoded output will appear here…"></textarea>
+        </div>
+      </div>
+      <div class="err-msg" id="htmlenc-err"></div>
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="htmlEncode()">⚡ Encode</button>
+        <button class="btn btn-secondary" onclick="copyText('htmlenc-out')">Copy Output</button>
+        <span class="spacer"></span>
+        <button class="btn btn-danger" onclick="clearIO('htmlenc-in','htmlenc-out','htmlenc-err')">Clear</button>
+      </div>
+    </div>
+
+    <!-- ═══ HTML Decode ═══ -->
+    <div class="tab-panel" id="tab-htmldec">
+      <div class="panel-title">
+        <span class="icon">&lt;&gt;</span> HTML Decode
+      </div>
+      <div class="io-grid">
+        <div class="io-box">
+          <label>Input (HTML Entities)</label>
+          <textarea id="htmldec-in" placeholder="Enter HTML-encoded string to decode…"></textarea>
+        </div>
+        <div class="io-box">
+          <label>Output (Plain Text)</label>
+          <textarea id="htmldec-out" readonly placeholder="Decoded output will appear here…"></textarea>
+        </div>
+      </div>
+      <div class="err-msg" id="htmldec-err"></div>
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="htmlDecode()">⚡ Decode</button>
+        <button class="btn btn-secondary" onclick="copyText('htmldec-out')">Copy Output</button>
+        <span class="spacer"></span>
+        <button class="btn btn-danger" onclick="clearIO('htmldec-in','htmldec-out','htmldec-err')">Clear</button>
+      </div>
+    </div>
+
+    <!-- ═══ JWT Decode ═══ -->
+    <div class="tab-panel" id="tab-jwt">
+      <div class="panel-title">
+        <span class="icon">J</span> JWT Decode
+      </div>
+      <div class="io-box">
+        <label>JWT Token</label>
+        <textarea id="jwt-in" style="height:90px;" placeholder="Paste your JWT token here…"></textarea>
+      </div>
+      <div class="err-msg" id="jwt-err"></div>
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="jwtDecode()">⚡ Decode</button>
+        <span class="spacer"></span>
+        <button class="btn btn-danger" onclick="clearJwt()">Clear</button>
+      </div>
+
+      <div id="jwt-status" style="display:none"></div>
+
+      <div class="jwt-panels" id="jwt-panels" style="display:none">
+        <div class="jwt-part">
+          <div class="jwt-part-header hdr">
+            Header
+            <button class="btn btn-secondary" style="padding:2px 10px;font-size:0.7rem;" onclick="copyText('jwt-header-pre', true)">Copy</button>
+          </div>
+          <pre id="jwt-header-pre"></pre>
+        </div>
+        <div class="jwt-part">
+          <div class="jwt-part-header pld">
+            Payload
+            <button class="btn btn-secondary" style="padding:2px 10px;font-size:0.7rem;" onclick="copyText('jwt-payload-pre', true)">Copy</button>
+          </div>
+          <pre id="jwt-payload-pre"></pre>
+        </div>
+        <div class="jwt-part">
+          <div class="jwt-part-header sig">
+            Signature
+            <button class="btn btn-secondary" style="padding:2px 10px;font-size:0.7rem;" onclick="copyText('jwt-sig-pre', true)">Copy</button>
+          </div>
+          <pre id="jwt-sig-pre" style="word-break:break-all;"></pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ JSON Beautify ═══ -->
+    <div class="tab-panel" id="tab-jsonbeautify">
+      <div class="panel-title">
+        <span class="icon">{ }</span> JSON Beautifier
+      </div>
+      <div class="io-grid">
+        <div class="io-box">
+          <label>Input (JSON)</label>
+          <textarea id="json-in" placeholder="Paste JSON here…"></textarea>
+        </div>
+        <div class="io-box">
+          <label>Output (Formatted)</label>
+          <textarea id="json-out" readonly placeholder="Formatted JSON will appear here…"></textarea>
+        </div>
+      </div>
+      <div class="err-msg" id="json-err"></div>
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="jsonBeautify()">⚡ Beautify</button>
+        <button class="btn btn-secondary" onclick="jsonMinify()">⟨ ⟩ Minify</button>
+        <button class="btn btn-secondary" onclick="copyText('json-out')">Copy Output</button>
+        <label style="font-size:0.8rem;color:var(--muted);display:flex;align-items:center;gap:6px;">
+          Indent
+          <select id="json-indent" onchange="jsonBeautify()" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:var(--radius);padding:4px 8px;font-size:0.8rem;cursor:pointer;">
+            <option value="2">2 spaces</option>
+            <option value="4">4 spaces</option>
+          </select>
+        </label>
+        <span class="spacer"></span>
+        <button class="btn btn-danger" onclick="clearIO('json-in','json-out','json-err')">Clear</button>
+      </div>
+    </div>
+
+    <!-- ═══ XML Beautify ═══ -->
+    <div class="tab-panel" id="tab-xmlbeautify">
+      <div class="panel-title">
+        <span class="icon">&lt;/&gt;</span> XML Beautifier
+      </div>
+      <div class="io-grid">
+        <div class="io-box">
+          <label>Input (XML)</label>
+          <textarea id="xml-in" placeholder="Paste XML here…"></textarea>
+        </div>
+        <div class="io-box">
+          <label>Output (Formatted)</label>
+          <textarea id="xml-out" readonly placeholder="Formatted XML will appear here…"></textarea>
+        </div>
+      </div>
+      <div class="err-msg" id="xml-err"></div>
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="xmlBeautify()">⚡ Beautify</button>
+        <button class="btn btn-secondary" onclick="xmlMinify()">⟨ ⟩ Minify</button>
+        <button class="btn btn-secondary" onclick="copyText('xml-out')">Copy Output</button>
+        <label style="font-size:0.8rem;color:var(--muted);display:flex;align-items:center;gap:6px;">
+          Indent
+          <select id="xml-indent" onchange="xmlBeautify()" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:var(--radius);padding:4px 8px;font-size:0.8rem;cursor:pointer;">
+            <option value="2">2 spaces</option>
+            <option value="4">4 spaces</option>
+          </select>
+        </label>
+        <span class="spacer"></span>
+        <button class="btn btn-danger" onclick="clearIO('xml-in','xml-out','xml-err')">Clear</button>
+      </div>
+    </div>
+
+    <!-- ═══ SAML Decode ═══ -->
+    <div class="tab-panel" id="tab-saml">
+      <div class="panel-title">
+        <span class="icon">S</span> SAML Decode
+      </div>
+      <div class="io-grid">
+        <div class="io-box">
+          <label>Input (Encoded SAML)</label>
+          <textarea id="saml-in" placeholder="Paste encoded SAML request or response (HTTP-Redirect or HTTP-POST binding)…"></textarea>
+        </div>
+        <div class="io-box">
+          <label>Output (XML)</label>
+          <textarea id="saml-out" readonly placeholder="Decoded XML will appear here…"></textarea>
+        </div>
+      </div>
+      <div class="err-msg" id="saml-err"></div>
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="samlDecode()">⚡ Decode</button>
+        <button class="btn btn-secondary" onclick="copyText('saml-out')">Copy Output</button>
+        <span class="spacer"></span>
+        <button class="btn btn-danger" onclick="clearIO('saml-in','saml-out','saml-err')">Clear</button>
+      </div>
+    </div>
+
+    <!-- ═══ Hash Generate ═══ -->
+    <div class="tab-panel" id="tab-hash">
+      <div class="panel-title">
+        <span class="icon">#</span> Hash Generator
+      </div>
+      <div class="io-box">
+        <label>Input</label>
+        <textarea id="hash-in" style="height:130px;" placeholder="Enter text to hash…"></textarea>
+      </div>
+      <div class="err-msg" id="hash-err"></div>
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="hashGenerate()">⚡ Generate</button>
+        <span class="spacer"></span>
+        <button class="btn btn-danger" onclick="clearHash()">Clear</button>
+      </div>
+      <div id="hash-results" style="display:none;margin-top:16px;display:none;flex-direction:column;gap:8px;"></div>
+    </div>
+
+    <!-- ═══ Timestamp Convert ═══ -->
+    <div class="tab-panel" id="tab-timestamp">
+      <div class="panel-title">
+        <span class="icon">⏱</span> Timestamp Converter
+      </div>
+      <div class="io-box" style="margin-bottom:0;">
+        <label>Input (Unix seconds/ms or date string)</label>
+        <div style="display:flex;gap:8px;">
+          <input id="ts-in" type="text" class="text-input" placeholder="e.g. 1700000000  or  2024-01-15T10:30:00Z" />
+          <button class="btn btn-secondary" onclick="tsNow()" style="white-space:nowrap;">Use Now</button>
+        </div>
+      </div>
+      <div class="err-msg" id="ts-err"></div>
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="tsConvert()">⚡ Convert</button>
+        <span class="spacer"></span>
+        <button class="btn btn-danger" onclick="clearTs()">Clear</button>
+      </div>
+      <div id="ts-results" style="display:none;margin-top:16px;flex-direction:column;gap:8px;"></div>
+    </div>
+
+    <!-- ═══ Diff Viewer ═══ -->
+    <div class="tab-panel" id="tab-diff">
+      <div class="panel-title">
+        <span class="icon">⟺</span> Diff Viewer
+      </div>
+      <div class="io-grid">
+        <div class="io-box">
+          <label>Original</label>
+          <textarea id="diff-left" placeholder="Paste original text…"></textarea>
+        </div>
+        <div class="io-box">
+          <label>Modified</label>
+          <textarea id="diff-right" placeholder="Paste modified text…"></textarea>
+        </div>
+      </div>
+      <div class="err-msg" id="diff-err"></div>
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="diffCompare()">⚡ Compare</button>
+        <span class="spacer"></span>
+        <button class="btn btn-danger" onclick="clearDiff()">Clear</button>
+      </div>
+      <div id="diff-output" style="display:none;margin-top:16px;">
+        <div id="diff-stats" class="diff-stats"></div>
+        <pre id="diff-pre" class="diff-pre"></pre>
+      </div>
+    </div>
+
+    <!-- ═══ Password Generator ═══ -->
+    <div class="tab-panel" id="tab-pwgen">
+      <div class="panel-title">
+        <span class="icon">🔑</span> Password Generator
+      </div>
+      <div class="pwgen-controls">
+        <div class="pwgen-length-row">
+          <span class="pwgen-label">Length</span>
+          <input type="range" id="pwgen-len" min="4" max="128" value="16" oninput="document.getElementById('pwgen-len-val').textContent=this.value">
+          <span id="pwgen-len-val" class="pwgen-len-val">16</span>
+        </div>
+        <div class="pwgen-checkboxes">
+          <label class="pwgen-check"><input type="checkbox" id="pwgen-upper" checked> Uppercase (A–Z)</label>
+          <label class="pwgen-check"><input type="checkbox" id="pwgen-lower" checked> Lowercase (a–z)</label>
+          <label class="pwgen-check"><input type="checkbox" id="pwgen-numbers" checked> Numbers (0–9)</label>
+          <label class="pwgen-check"><input type="checkbox" id="pwgen-symbols"> Symbols (!@#$%^&amp;*)</label>
+        </div>
+      </div>
+      <div class="err-msg" id="pwgen-err"></div>
+      <div class="pwgen-result-row">
+        <input type="text" id="pwgen-result" class="text-input" readonly placeholder="Click Generate…" style="font-size:1rem;letter-spacing:0.05em;">
+      </div>
+      <div id="pwgen-strength" class="pwgen-strength" style="display:none;">
+        <div class="strength-bar-track"><div id="strength-bar-fill" class="strength-bar-fill"></div></div>
+        <span id="strength-label" class="strength-label"></span>
+      </div>
+      <div class="btn-row" style="margin-top:12px;">
+        <button class="btn btn-primary" onclick="pwGenerate()">⚡ Generate</button>
+        <button class="btn btn-secondary" onclick="copyVal(document.getElementById('pwgen-result').value)">Copy</button>
+        <span class="spacer"></span>
+      </div>
+    </div>
+
+    <!-- ═══ Regex Tester ═══ -->
+    <div class="tab-panel" id="tab-regex">
+      <div class="panel-title">
+        <span class="icon">.*</span> Regex Tester
+      </div>
+      <div class="regex-pattern-row">
+        <span class="regex-slash">/</span>
+        <input type="text" id="regex-pattern" class="text-input" placeholder="pattern" style="border-radius:0;border-left:none;border-right:none;">
+        <span class="regex-slash">/</span>
+        <div class="regex-flags">
+          <label title="Global"><input type="checkbox" id="re-g" checked> g</label>
+          <label title="Case insensitive"><input type="checkbox" id="re-i"> i</label>
+          <label title="Multiline"><input type="checkbox" id="re-m"> m</label>
+          <label title="Dot all"><input type="checkbox" id="re-s"> s</label>
+        </div>
+      </div>
+      <div class="io-box" style="margin-top:12px;">
+        <label>Test String</label>
+        <textarea id="regex-test" style="height:160px;" placeholder="Paste text to test against…"></textarea>
+      </div>
+      <div class="err-msg" id="regex-err"></div>
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="regexTest()">⚡ Test</button>
+        <span class="spacer"></span>
+        <button class="btn btn-danger" onclick="clearRegex()">Clear</button>
+      </div>
+      <div id="regex-output" style="display:none;margin-top:16px;">
+        <div id="regex-stats" class="regex-stats"></div>
+        <div class="io-box" style="margin-top:8px;">
+          <label>Highlighted</label>
+          <div id="regex-highlight" class="regex-highlight"></div>
+        </div>
+        <div class="io-box" style="margin-top:12px;">
+          <label>Matches</label>
+          <div id="regex-matches" class="regex-matches"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ UUID Generator ═══ -->
+    <div class="tab-panel" id="tab-uuid">
+      <div class="panel-title">
+        <span class="icon">⊞</span> UUID Generator
+      </div>
+      <div class="io-box" style="margin-bottom:0;">
+        <label>Count</label>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <input type="number" id="uuid-count" class="text-input" value="1" min="1" max="100" style="width:90px;">
+          <span style="font-size:0.8rem;color:var(--muted);">v4 UUIDs (max 100)</span>
+        </div>
+      </div>
+      <div class="err-msg" id="uuid-err"></div>
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="uuidGenerate()">⚡ Generate</button>
+        <button class="btn btn-secondary" id="uuid-copy-all" style="display:none;" onclick="uuidCopyAll()">Copy All</button>
+        <span class="spacer"></span>
+        <button class="btn btn-danger" onclick="clearUuid()">Clear</button>
+      </div>
+      <div id="uuid-results" style="display:none;margin-top:16px;flex-direction:column;gap:6px;"></div>
+    </div>
+
+    <!-- ═══ Base64 URL Encode ═══ -->
+    <div class="tab-panel" id="tab-b64urlenc">
+      <div class="panel-title">
+        <span class="icon">B</span> Base64 URL Encode
+      </div>
+      <div class="io-grid">
+        <div class="io-box">
+          <label>Input (Plain Text)</label>
+          <textarea id="b64urlenc-in" placeholder="Enter text to encode…"></textarea>
+        </div>
+        <div class="io-box">
+          <label>Output (Base64 URL — no padding)</label>
+          <textarea id="b64urlenc-out" readonly placeholder="URL-safe Base64 output will appear here…"></textarea>
+        </div>
+      </div>
+      <div class="err-msg" id="b64urlenc-err"></div>
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="b64urlEncode()">⚡ Encode</button>
+        <button class="btn btn-secondary" onclick="copyText('b64urlenc-out')">Copy Output</button>
+        <span class="spacer"></span>
+        <button class="btn btn-danger" onclick="clearIO('b64urlenc-in','b64urlenc-out','b64urlenc-err')">Clear</button>
+      </div>
+    </div>
+
+    <!-- ═══ Base64 URL Decode ═══ -->
+    <div class="tab-panel" id="tab-b64urldec">
+      <div class="panel-title">
+        <span class="icon">B</span> Base64 URL Decode
+      </div>
+      <div class="io-grid">
+        <div class="io-box">
+          <label>Input (Base64 URL)</label>
+          <textarea id="b64urldec-in" placeholder="Enter URL-safe Base64 string to decode…"></textarea>
+        </div>
+        <div class="io-box">
+          <label>Output (Plain Text)</label>
+          <textarea id="b64urldec-out" readonly placeholder="Decoded output will appear here…"></textarea>
+        </div>
+      </div>
+      <div class="err-msg" id="b64urldec-err"></div>
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="b64urlDecode()">⚡ Decode</button>
+        <button class="btn btn-secondary" onclick="copyText('b64urldec-out')">Copy Output</button>
+        <span class="spacer"></span>
+        <button class="btn btn-danger" onclick="clearIO('b64urldec-in','b64urldec-out','b64urldec-err')">Clear</button>
+      </div>
+    </div>
+
+    <!-- ═══ HTTP Status Codes ═══ -->
+    <div class="tab-panel" id="tab-httpstatus">
+      <div class="panel-title">
+        <span class="icon">H</span> HTTP Status Code Reference
+      </div>
+      <input type="text" id="http-search" class="text-input" placeholder="Search by code or description…" oninput="httpFilter()" style="width:100%;max-width:420px;margin-bottom:16px;">
+      <div id="http-table"></div>
+    </div>
+
+    <!-- ═══ CORS Header Builder ═══ -->
+    <div class="tab-panel" id="tab-cors">
+      <div class="panel-title">
+        <span class="icon">⇆</span> CORS Header Builder
+      </div>
+      <div class="cors-form">
+        <div class="cors-field">
+          <label class="cors-label">Access-Control-Allow-Origin</label>
+          <input type="text" id="cors-origin" class="text-input" value="*" placeholder="* or https://example.com" style="max-width:400px;">
+        </div>
+        <div class="cors-field">
+          <label class="cors-label">Access-Control-Allow-Methods</label>
+          <div class="cors-checkboxes">
+            <label><input type="checkbox" id="cors-get" checked> GET</label>
+            <label><input type="checkbox" id="cors-post" checked> POST</label>
+            <label><input type="checkbox" id="cors-put"> PUT</label>
+            <label><input type="checkbox" id="cors-patch"> PATCH</label>
+            <label><input type="checkbox" id="cors-delete"> DELETE</label>
+            <label><input type="checkbox" id="cors-options" checked> OPTIONS</label>
+            <label><input type="checkbox" id="cors-head"> HEAD</label>
+          </div>
+        </div>
+        <div class="cors-field">
+          <label class="cors-label">Access-Control-Allow-Headers</label>
+          <input type="text" id="cors-headers" class="text-input" value="Content-Type, Authorization" placeholder="Content-Type, Authorization" style="max-width:500px;">
+        </div>
+        <div class="cors-field">
+          <label class="cors-label">Access-Control-Expose-Headers <span style="font-weight:400;text-transform:none;">(optional)</span></label>
+          <input type="text" id="cors-expose" class="text-input" placeholder="X-Custom-Header" style="max-width:500px;">
+        </div>
+        <div class="cors-field">
+          <label class="cors-label">Access-Control-Max-Age (seconds)</label>
+          <input type="number" id="cors-maxage" class="text-input" value="86400" style="width:150px;">
+        </div>
+        <div class="cors-field">
+          <label class="cors-label" style="flex-direction:row;align-items:center;gap:8px;display:flex;">
+            <input type="checkbox" id="cors-credentials" style="accent-color:var(--accent);cursor:pointer;">
+            Access-Control-Allow-Credentials: true
+          </label>
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="corsGenerate()">⚡ Generate Headers</button>
+        <span class="spacer"></span>
+      </div>
+      <div id="cors-output" style="display:none;margin-top:16px;">
+        <div class="io-box">
+          <label>Response Headers</label>
+          <textarea id="cors-result" readonly style="height:180px;"></textarea>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-secondary" onclick="copyText('cors-result')">Copy Headers</button>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- .content -->
+</div><!-- .main -->
+
+<footer>
+  <span>Developed with ❤️ by WSO2 CS</span>
+</footer>
+
+<div id="toast"></div>
+
+<script src="app.js"></script>
+</body>
 </html>
