@@ -36,6 +36,7 @@
         <button data-tab="b64urldec">B64 URL Decode</button>
         <button data-tab="jwt">JWT Decode</button>
         <button data-tab="saml">SAML Decode</button>
+        <button data-tab="pem">PEM Decoder</button>
       </div>
     </div>
 
@@ -622,6 +623,24 @@
           <button class="btn btn-secondary" onclick="copyText('cors-result')">Copy Headers</button>
         </div>
       </div>
+    </div>
+
+    <!-- ═══ PEM / Certificate Decoder ═══ -->
+    <div class="tab-panel" id="tab-pem">
+      <div class="panel-title">
+        <span class="icon">🔒</span> PEM / Certificate Decoder
+      </div>
+      <div class="io-box">
+        <label>Input (PEM Certificate)</label>
+        <textarea id="pem-in" placeholder="Paste PEM certificate (-----BEGIN CERTIFICATE-----) …" style="height:180px;"></textarea>
+      </div>
+      <div class="err-msg" id="pem-err"></div>
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="pemDecode()">⚡ Decode</button>
+        <span class="spacer"></span>
+        <button class="btn btn-danger" onclick="clearPem()">Clear</button>
+      </div>
+      <div id="pem-results" style="display:none;margin-top:16px;flex-direction:column;gap:8px;"></div>
     </div>
 
   </div><!-- .content -->

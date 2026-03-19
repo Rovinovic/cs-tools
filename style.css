@@ -549,6 +549,21 @@ input[type="range"] { flex: 1; accent-color: var(--accent); cursor: pointer; }
 .cors-checkboxes label { font-size: 0.82rem; cursor: pointer; display: flex; align-items: center; gap: 5px; }
 .cors-checkboxes input[type="checkbox"] { accent-color: var(--accent); cursor: pointer; }
 
+/* ── PEM / Certificate Decoder ── */
+.pem-cert-title { font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--accent); padding: 8px 0 4px; }
+.pem-cert { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+.pem-status { padding: 8px 14px; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; text-align: center; }
+.pem-valid { background: rgba(62,207,142,0.12); color: var(--success); }
+.pem-expired { background: rgba(239,68,68,0.12); color: var(--danger); }
+.pem-section { border-top: 1px solid var(--border); padding: 10px 14px; }
+.pem-section-title { font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 6px; }
+.pem-field { display: flex; align-items: flex-start; gap: 10px; padding: 3px 0; font-size: 0.82rem; }
+.pem-label { font-size: 0.72rem; font-weight: 600; color: var(--muted); width: 100px; flex-shrink: 0; padding-top: 1px; }
+.pem-value { font-family: var(--mono); font-size: 0.78rem; color: var(--text); flex: 1; word-break: break-word; }
+.pem-hash { font-size: 0.72rem; word-break: break-all; }
+.pem-sans { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.pem-san-tag { background: var(--surface2); border: 1px solid var(--border); border-radius: 4px; padding: 3px 8px; font-size: 0.75rem; font-family: var(--mono); color: var(--text); }
+
 footer {
   background: var(--surface);
   border-top: 1px solid var(--border);

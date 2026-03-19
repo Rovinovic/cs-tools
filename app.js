@@ -833,6 +833,506 @@ function corsGenerate() {
   document.getElementById('cors-output').style.display = 'block';
 }
 
+/* ── PEM / Certificate Decoder ── */
+const PEM = (() => {
+  // OID name lookup
+  const OID_NAMES = {
+    '2.5.4.3': 'CN', '2.5.4.4': 'SN', '2.5.4.5': 'serialNumber',
+    '2.5.4.6': 'C', '2.5.4.7': 'L', '2.5.4.8': 'ST',
+    '2.5.4.9': 'street', '2.5.4.10': 'O', '2.5.4.11': 'OU',
+    '2.5.4.12': 'title', '2.5.4.17': 'postalCode', '2.5.4.42': 'GN',
+    '2.5.4.46': 'dnQualifier',
+    '1.2.840.113549.1.1.1': 'RSA',
+    '1.2.840.113549.1.1.5': 'SHA-1 with RSA',
+    '1.2.840.113549.1.1.11': 'SHA-256 with RSA',
+    '1.2.840.113549.1.1.12': 'SHA-384 with RSA',
+    '1.2.840.113549.1.1.13': 'SHA-512 with RSA',
+    '1.2.840.113549.1.1.14': 'SHA-224 with RSA',
+    '1.2.840.10045.2.1': 'EC',
+    '1.2.840.10045.3.1.7': 'P-256 (secp256r1)',
+    '1.2.840.10045.4.3.2': 'ECDSA with SHA-256',
+    '1.2.840.10045.4.3.3': 'ECDSA with SHA-384',
+    '1.2.840.10045.4.3.4': 'ECDSA with SHA-512',
+    '1.3.101.112': 'Ed25519',
+    '1.3.101.113': 'Ed448',
+    '2.5.29.14': 'Subject Key Identifier',
+    '2.5.29.15': 'Key Usage',
+    '2.5.29.17': 'Subject Alternative Name',
+    '2.5.29.19': 'Basic Constraints',
+    '2.5.29.31': 'CRL Distribution Points',
+    '2.5.29.32': 'Certificate Policies',
+    '2.5.29.35': 'Authority Key Identifier',
+    '2.5.29.37': 'Extended Key Usage',
+    '1.3.6.1.5.5.7.1.1': 'Authority Information Access',
+    '1.3.6.1.5.5.7.3.1': 'TLS Web Server Authentication',
+    '1.3.6.1.5.5.7.3.2': 'TLS Web Client Authentication',
+    '1.2.840.113549.1.9.1': 'emailAddress',
+    '0.9.2342.19200300.100.1.25': 'DC',
+  };
+
+  const KEY_USAGE_BITS = [
+    'Digital Signature', 'Non Repudiation', 'Key Encipherment',
+    'Data Encipherment', 'Key Agreement', 'Key Cert Sign',
+    'CRL Sign', 'Encipher Only', 'Decipher Only'
+  ];
+
+  function parseDER(bytes, start, end) {
+    start = start || 0;
+    end = end || bytes.length;
+    const nodes = [];
+    let pos = start;
+    while (pos < end) {
+      if (pos >= bytes.length) break;
+      const tag = bytes[pos++];
+      if (pos >= end) break;
+      let len = bytes[pos++];
+      if (len & 0x80) {
+        const numBytes = len & 0x7f;
+        len = 0;
+        for (let i = 0; i < numBytes; i++) len = (len << 8) | bytes[pos++];
+      }
+      const valueStart = pos;
+      const valueEnd = pos + len;
+      const constructed = !!(tag & 0x20);
+      const node = { tag, len, start: valueStart, end: valueEnd, bytes: bytes.slice(valueStart, valueEnd) };
+      if (constructed) {
+        node.children = parseDER(bytes, valueStart, valueEnd);
+      }
+      nodes.push(node);
+      pos = valueEnd;
+    }
+    return nodes;
+  }
+
+  function readOID(bytes) {
+    const parts = [];
+    parts.push(Math.floor(bytes[0] / 40));
+    parts.push(bytes[0] % 40);
+    let val = 0;
+    for (let i = 1; i < bytes.length; i++) {
+      val = (val << 7) | (bytes[i] & 0x7f);
+      if (!(bytes[i] & 0x80)) { parts.push(val); val = 0; }
+    }
+    return parts.join('.');
+  }
+
+  function readInt(bytes) {
+    // Return as hex string for large numbers
+    if (bytes.length > 6) return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join(':');
+    let val = 0;
+    for (let i = 0; i < bytes.length; i++) val = val * 256 + bytes[i];
+    return val;
+  }
+
+  function readUTF8(bytes) {
+    return new TextDecoder().decode(new Uint8Array(bytes));
+  }
+
+  function readTime(node) {
+    const s = readUTF8(node.bytes);
+    if (node.tag === 0x17) { // UTCTime
+      const yy = parseInt(s.slice(0, 2));
+      const year = yy >= 50 ? 1900 + yy : 2000 + yy;
+      return new Date(`${year}-${s.slice(2,4)}-${s.slice(4,6)}T${s.slice(6,8)}:${s.slice(8,10)}:${s.slice(10,12)}Z`);
+    }
+    // GeneralizedTime (0x18)
+    return new Date(`${s.slice(0,4)}-${s.slice(4,6)}-${s.slice(6,8)}T${s.slice(8,10)}:${s.slice(10,12)}:${s.slice(12,14)}Z`);
+  }
+
+  function readName(node) {
+    // Name = SEQUENCE of SET of SEQUENCE { OID, value }
+    // Returns { dn: "CN=..., O=...", fields: { CN: "...", O: "...", ... } }
+    if (!node.children) return { dn: '', fields: {} };
+    const parts = [];
+    const fields = {};
+    for (const set of node.children) {
+      if (!set.children) continue;
+      for (const seq of set.children) {
+        if (!seq.children || seq.children.length < 2) continue;
+        const oid = readOID(seq.children[0].bytes);
+        const valNode = seq.children[1];
+        const val = readUTF8(valNode.bytes);
+        const name = OID_NAMES[oid] || oid;
+        parts.push(name + '=' + val);
+        fields[name] = val;
+      }
+    }
+    return { dn: parts.join(', '), fields };
+  }
+
+  function readSANs(extValueBytes) {
+    // SANs extension value is an OCTET STRING wrapping a SEQUENCE of GeneralNames
+    const wrapper = parseDER(extValueBytes, 0, extValueBytes.length);
+    if (!wrapper.length || !wrapper[0].children) return [];
+    const sans = [];
+    for (const gn of wrapper[0].children) {
+      const tagNum = gn.tag & 0x1f;
+      const val = readUTF8(gn.bytes);
+      if (tagNum === 2) sans.push('DNS: ' + val);
+      else if (tagNum === 1) sans.push('Email: ' + val);
+      else if (tagNum === 6) sans.push('URI: ' + val);
+      else if (tagNum === 7) {
+        // IP address
+        if (gn.bytes.length === 4) {
+          sans.push('IP: ' + Array.from(gn.bytes).join('.'));
+        } else if (gn.bytes.length === 16) {
+          const parts = [];
+          for (let i = 0; i < 16; i += 2) parts.push(((gn.bytes[i] << 8) | gn.bytes[i+1]).toString(16));
+          sans.push('IP: ' + parts.join(':'));
+        }
+      } else {
+        sans.push('Other(' + tagNum + '): ' + val);
+      }
+    }
+    return sans;
+  }
+
+  function readKeyUsage(bytes) {
+    // Key Usage is a BIT STRING
+    const inner = parseDER(bytes, 0, bytes.length);
+    if (!inner.length) return [];
+    const bits = inner[0].bytes;
+    if (bits.length < 2) return [];
+    const unusedBits = bits[0];
+    const usages = [];
+    for (let i = 1; i < bits.length; i++) {
+      for (let b = 7; b >= 0; b--) {
+        const bitIndex = (i - 1) * 8 + (7 - b);
+        if (bitIndex >= KEY_USAGE_BITS.length) break;
+        if (i === bits.length - 1 && (7 - b) >= (8 - unusedBits)) break;
+        if (bits[i] & (1 << b)) usages.push(KEY_USAGE_BITS[bitIndex]);
+      }
+    }
+    return usages;
+  }
+
+  function readExtKeyUsage(bytes) {
+    const inner = parseDER(bytes, 0, bytes.length);
+    if (!inner.length || !inner[0].children) return [];
+    return inner[0].children.map(c => {
+      const oid = readOID(c.bytes);
+      return OID_NAMES[oid] || oid;
+    });
+  }
+
+  function readBasicConstraints(bytes) {
+    const inner = parseDER(bytes, 0, bytes.length);
+    if (!inner.length || !inner[0].children) return 'CA: false';
+    const children = inner[0].children;
+    const isCA = children.length > 0 && children[0].tag === 0x01 && children[0].bytes[0] !== 0;
+    let pathLen = '';
+    if (children.length > 1 && children[1].tag === 0x02) {
+      pathLen = ', Path Length: ' + readInt(children[1].bytes);
+    }
+    return 'CA: ' + isCA + pathLen;
+  }
+
+  function getPublicKeyInfo(spki) {
+    if (!spki.children || spki.children.length < 2) return { algorithm: 'Unknown', bits: 0 };
+    const algoSeq = spki.children[0];
+    const keyBits = spki.children[1];
+    let algo = 'Unknown';
+    let params = '';
+    if (algoSeq.children && algoSeq.children.length > 0) {
+      const oid = readOID(algoSeq.children[0].bytes);
+      algo = OID_NAMES[oid] || oid;
+      if (algoSeq.children.length > 1 && algoSeq.children[1].tag === 0x06) {
+        params = OID_NAMES[readOID(algoSeq.children[1].bytes)] || '';
+      }
+    }
+    // Key size: bit string length * 8 minus unused bits indicator
+    const keySize = keyBits.bytes.length > 0 ? (keyBits.bytes.length - 1) * 8 : 0;
+    // For RSA, parse the actual modulus to get bit size
+    let bits = keySize;
+    if (algo === 'RSA' && keyBits.bytes.length > 1) {
+      const inner = parseDER(keyBits.bytes, 1, keyBits.bytes.length);
+      if (inner.length && inner[0].children && inner[0].children.length > 0) {
+        bits = (inner[0].children[0].bytes.length - (inner[0].children[0].bytes[0] === 0 ? 1 : 0)) * 8;
+      }
+    }
+    return { algorithm: algo + (params ? ' (' + params + ')' : ''), bits };
+  }
+
+  async function decode(pem) {
+    // Support multiple certs in a chain
+    const certBlocks = pem.match(/-----BEGIN CERTIFICATE-----[\s\S]*?-----END CERTIFICATE-----/g);
+    if (!certBlocks || certBlocks.length === 0) throw new Error('No PEM certificate found. Expected -----BEGIN CERTIFICATE----- block.');
+
+    const certs = [];
+    for (const block of certBlocks) {
+      const b64 = block.replace(/-----BEGIN CERTIFICATE-----/, '').replace(/-----END CERTIFICATE-----/, '').replace(/\s/g, '');
+      const raw = atob(b64);
+      const der = new Uint8Array(raw.length);
+      for (let i = 0; i < raw.length; i++) der[i] = raw.charCodeAt(i);
+
+      const root = parseDER(der, 0, der.length);
+      if (!root.length || !root[0].children || root[0].children.length < 3) throw new Error('Invalid X.509 certificate structure.');
+
+      const cert = root[0];
+      const tbs = cert.children[0];
+      const sigAlgoNode = cert.children[1];
+      // const sigValue = cert.children[2];
+
+      if (!tbs.children || tbs.children.length < 6) throw new Error('Invalid TBSCertificate structure.');
+
+      let idx = 0;
+      // Version: [0] EXPLICIT INTEGER
+      let version = 1;
+      if ((tbs.children[idx].tag & 0xe0) === 0xa0) {
+        const versionNode = parseDER(tbs.children[idx].bytes, 0, tbs.children[idx].bytes.length);
+        version = versionNode.length ? readInt(versionNode[0].bytes) + 1 : 1;
+        idx++;
+      }
+
+      const serial = readInt(tbs.children[idx++].bytes);
+      idx++; // skip signature algorithm (duplicate of outer)
+      const issuer = readName(tbs.children[idx++]);
+      const validity = tbs.children[idx++];
+      const subject = readName(tbs.children[idx++]);
+      const spki = tbs.children[idx++];
+
+      const notBefore = validity.children ? readTime(validity.children[0]) : null;
+      const notAfter = validity.children ? readTime(validity.children[1]) : null;
+
+      // Signature algorithm
+      let sigAlgo = 'Unknown';
+      if (sigAlgoNode.children && sigAlgoNode.children.length > 0) {
+        const oid = readOID(sigAlgoNode.children[0].bytes);
+        sigAlgo = OID_NAMES[oid] || oid;
+      }
+
+      // Public key info
+      const pubKeyInfo = getPublicKeyInfo(spki);
+
+      // Extensions
+      const extensions = [];
+      const sans = [];
+      let keyUsage = [];
+      let extKeyUsage = [];
+      let basicConstraints = '';
+
+      for (let i = idx; i < tbs.children.length; i++) {
+        const ext = tbs.children[i];
+        if ((ext.tag & 0xe0) === 0xa0 && (ext.tag & 0x1f) === 3) {
+          // Extensions wrapper
+          const extsSeq = parseDER(ext.bytes, 0, ext.bytes.length);
+          if (extsSeq.length && extsSeq[0].children) {
+            for (const extEntry of extsSeq[0].children) {
+              if (!extEntry.children || extEntry.children.length < 2) continue;
+              const extOid = readOID(extEntry.children[0].bytes);
+              const extName = OID_NAMES[extOid] || extOid;
+              const critical = extEntry.children.length > 2 && extEntry.children[1].tag === 0x01 && extEntry.children[1].bytes[0] !== 0;
+              const extValueNode = extEntry.children[extEntry.children.length - 1];
+
+              if (extOid === '2.5.29.17') {
+                sans.push(...readSANs(extValueNode.bytes));
+              } else if (extOid === '2.5.29.15') {
+                keyUsage = readKeyUsage(extValueNode.bytes);
+              } else if (extOid === '2.5.29.37') {
+                extKeyUsage = readExtKeyUsage(extValueNode.bytes);
+              } else if (extOid === '2.5.29.19') {
+                basicConstraints = readBasicConstraints(extValueNode.bytes);
+              }
+
+              extensions.push({ oid: extOid, name: extName, critical });
+            }
+          }
+        }
+      }
+
+      // Fingerprints
+      const sha1 = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-1', der)))
+        .map(b => b.toString(16).padStart(2, '0').toUpperCase()).join(':');
+      const sha256 = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', der)))
+        .map(b => b.toString(16).padStart(2, '0').toUpperCase()).join(':');
+
+      const now = new Date();
+      const isExpired = notAfter && now > notAfter;
+      const isNotYetValid = notBefore && now < notBefore;
+
+      certs.push({
+        version, serial, subject, issuer,
+        notBefore, notAfter,
+        sigAlgo, pubKeyInfo,
+        sans, keyUsage, extKeyUsage, basicConstraints,
+        extensions, sha1, sha256,
+        isExpired, isNotYetValid,
+      });
+    }
+    return certs;
+  }
+
+  // Decode raw DER certificate byte arrays (for keystore viewer)
+  async function decodeDER(derArrays) {
+    const certs = [];
+    for (const der of derArrays) {
+      const root = parseDER(der, 0, der.length);
+      if (!root.length || !root[0].children || root[0].children.length < 3) continue;
+
+      const cert = root[0];
+      const tbs = cert.children[0];
+      const sigAlgoNode = cert.children[1];
+
+      if (!tbs.children || tbs.children.length < 6) continue;
+
+      let idx = 0;
+      let version = 1;
+      if ((tbs.children[idx].tag & 0xe0) === 0xa0) {
+        const versionNode = parseDER(tbs.children[idx].bytes, 0, tbs.children[idx].bytes.length);
+        version = versionNode.length ? readInt(versionNode[0].bytes) + 1 : 1;
+        idx++;
+      }
+
+      const serial = readInt(tbs.children[idx++].bytes);
+      idx++;
+      const issuer = readName(tbs.children[idx++]);
+      const validity = tbs.children[idx++];
+      const subject = readName(tbs.children[idx++]);
+      const spki = tbs.children[idx++];
+
+      const notBefore = validity.children ? readTime(validity.children[0]) : null;
+      const notAfter = validity.children ? readTime(validity.children[1]) : null;
+
+      let sigAlgo = 'Unknown';
+      if (sigAlgoNode.children && sigAlgoNode.children.length > 0) {
+        const oid = readOID(sigAlgoNode.children[0].bytes);
+        sigAlgo = OID_NAMES[oid] || oid;
+      }
+
+      const pubKeyInfo = getPublicKeyInfo(spki);
+
+      const sans = [];
+      let keyUsage = [];
+      let extKeyUsage = [];
+      let basicConstraints = '';
+
+      for (let i = idx; i < tbs.children.length; i++) {
+        const ext = tbs.children[i];
+        if ((ext.tag & 0xe0) === 0xa0 && (ext.tag & 0x1f) === 3) {
+          const extsSeq = parseDER(ext.bytes, 0, ext.bytes.length);
+          if (extsSeq.length && extsSeq[0].children) {
+            for (const extEntry of extsSeq[0].children) {
+              if (!extEntry.children || extEntry.children.length < 2) continue;
+              const extOid = readOID(extEntry.children[0].bytes);
+              const extValueNode = extEntry.children[extEntry.children.length - 1];
+              if (extOid === '2.5.29.17') sans.push(...readSANs(extValueNode.bytes));
+              else if (extOid === '2.5.29.15') keyUsage = readKeyUsage(extValueNode.bytes);
+              else if (extOid === '2.5.29.37') extKeyUsage = readExtKeyUsage(extValueNode.bytes);
+              else if (extOid === '2.5.29.19') basicConstraints = readBasicConstraints(extValueNode.bytes);
+            }
+          }
+        }
+      }
+
+      const sha1 = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-1', der)))
+        .map(b => b.toString(16).padStart(2, '0').toUpperCase()).join(':');
+      const sha256 = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', der)))
+        .map(b => b.toString(16).padStart(2, '0').toUpperCase()).join(':');
+
+      const now = new Date();
+      certs.push({
+        version, serial, subject, issuer,
+        notBefore, notAfter, sigAlgo, pubKeyInfo,
+        sans, keyUsage, extKeyUsage, basicConstraints,
+        sha1, sha256,
+        isExpired: notAfter && now > notAfter,
+        isNotYetValid: notBefore && now < notBefore,
+      });
+    }
+    return certs;
+  }
+
+  return { decode, decodeDER, parseDER, readOID, readUTF8 };
+})();
+
+async function pemDecode() {
+  const input = document.getElementById('pem-in');
+  const resultsEl = document.getElementById('pem-results');
+  setError('pem-err', '');
+  input.classList.remove('error');
+  const val = input.value.trim();
+  if (!val) { setError('pem-err', 'Please paste a PEM certificate.'); input.classList.add('error'); return; }
+
+  try {
+    const certs = await PEM.decode(val);
+    const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const nameFieldLabels = {
+      CN: 'Common Name', O: 'Organization', OU: 'Org Unit',
+      L: 'Locality', ST: 'State', C: 'Country',
+      emailAddress: 'Email', DC: 'Domain Component',
+      serialNumber: 'Serial No.', SN: 'Surname', GN: 'Given Name',
+      street: 'Street', postalCode: 'Postal Code', title: 'Title',
+      dnQualifier: 'DN Qualifier',
+    };
+    const nameFieldOrder = ['CN', 'O', 'OU', 'L', 'ST', 'C', 'emailAddress', 'DC'];
+
+    function renderNameFields(nameObj) {
+      const f = nameObj.fields;
+      const allKeys = nameFieldOrder.filter(k => f[k]).concat(Object.keys(f).filter(k => !nameFieldOrder.includes(k)));
+      return allKeys.map(k => {
+        const label = nameFieldLabels[k] || k;
+        return `<div class="pem-field"><span class="pem-label">${esc(label)}</span><span class="pem-value">${esc(f[k])}</span></div>`;
+      }).join('');
+    }
+
+    resultsEl.innerHTML = certs.map((cert, i) => {
+      const statusCls = cert.isExpired ? 'pem-expired' : cert.isNotYetValid ? 'pem-expired' : 'pem-valid';
+      const statusMsg = cert.isExpired ? 'EXPIRED' : cert.isNotYetValid ? 'NOT YET VALID' : 'VALID';
+      const title = certs.length > 1 ? `<div class="pem-cert-title">Certificate ${i + 1} of ${certs.length}</div>` : '';
+      return `${title}<div class="pem-cert">
+        <div class="pem-status ${statusCls}">${statusMsg}</div>
+        <div class="pem-section">
+          <div class="pem-section-title">Subject</div>
+          ${renderNameFields(cert.subject)}
+        </div>
+        ${cert.sans.length ? `<div class="pem-section">
+          <div class="pem-section-title">Subject Alternative Names (${cert.sans.length})</div>
+          <div class="pem-sans">${cert.sans.map(s => `<span class="pem-san-tag">${esc(s)}</span>`).join('')}</div>
+        </div>` : ''}
+        <div class="pem-section">
+          <div class="pem-section-title">Issuer</div>
+          ${renderNameFields(cert.issuer)}
+        </div>
+        <div class="pem-section">
+          <div class="pem-section-title">Validity</div>
+          <div class="pem-field"><span class="pem-label">Valid From</span><span class="pem-value">${cert.notBefore ? cert.notBefore.toUTCString() : 'N/A'}</span></div>
+          <div class="pem-field"><span class="pem-label">Valid To</span><span class="pem-value">${cert.notAfter ? cert.notAfter.toUTCString() : 'N/A'}</span></div>
+        </div>
+        <div class="pem-section">
+          <div class="pem-section-title">Details</div>
+          <div class="pem-field"><span class="pem-label">Version</span><span class="pem-value">V${cert.version}</span></div>
+          <div class="pem-field"><span class="pem-label">Serial Number</span><span class="pem-value" style="word-break:break-all;">${esc(String(cert.serial))}</span></div>
+          <div class="pem-field"><span class="pem-label">Signature Algo</span><span class="pem-value">${esc(cert.sigAlgo)}</span></div>
+          <div class="pem-field"><span class="pem-label">Public Key</span><span class="pem-value">${esc(cert.pubKeyInfo.algorithm)} (${cert.pubKeyInfo.bits} bit)</span></div>
+          ${cert.basicConstraints ? `<div class="pem-field"><span class="pem-label">Basic Constraints</span><span class="pem-value">${esc(cert.basicConstraints)}</span></div>` : ''}
+          ${cert.keyUsage.length ? `<div class="pem-field"><span class="pem-label">Key Usage</span><span class="pem-value">${cert.keyUsage.map(esc).join(', ')}</span></div>` : ''}
+          ${cert.extKeyUsage.length ? `<div class="pem-field"><span class="pem-label">Ext Key Usage</span><span class="pem-value">${cert.extKeyUsage.map(esc).join(', ')}</span></div>` : ''}
+        </div>
+        <div class="pem-section">
+          <div class="pem-section-title">Fingerprints</div>
+          <div class="pem-field"><span class="pem-label">SHA-1</span><span class="pem-value pem-hash">${cert.sha1}</span>
+            <button class="btn btn-secondary" style="padding:2px 10px;font-size:0.7rem;flex-shrink:0;" onclick="copyVal('${cert.sha1.replace(/'/g, "\\'")}')">Copy</button></div>
+          <div class="pem-field"><span class="pem-label">SHA-256</span><span class="pem-value pem-hash">${cert.sha256}</span>
+            <button class="btn btn-secondary" style="padding:2px 10px;font-size:0.7rem;flex-shrink:0;" onclick="copyVal('${cert.sha256.replace(/'/g, "\\'")}')">Copy</button></div>
+        </div>
+      </div>`;
+    }).join('');
+    resultsEl.style.display = 'flex';
+  } catch (e) {
+    setError('pem-err', e.message);
+    input.classList.add('error');
+    resultsEl.style.display = 'none';
+  }
+}
+
+function clearPem() {
+  document.getElementById('pem-in').value = '';
+  document.getElementById('pem-in').classList.remove('error');
+  setError('pem-err', '');
+  const r = document.getElementById('pem-results');
+  r.style.display = 'none'; r.innerHTML = '';
+}
+
 /* ── Theme toggle ── */
 function toggleTheme() {
   const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
@@ -867,5 +1367,6 @@ document.getElementById('b64urlenc-in').addEventListener('input', b64urlEncode);
 document.getElementById('b64urldec-in').addEventListener('input', b64urlDecode);
 document.getElementById('regex-pattern').addEventListener('input', regexTest);
 document.getElementById('regex-test').addEventListener('input', regexTest);
+document.getElementById('pem-in').addEventListener('input', pemDecode);
 // Init HTTP table on load
 renderHttpTable('');
