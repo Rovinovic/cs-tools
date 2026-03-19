@@ -833,6 +833,583 @@ function corsGenerate() {
   document.getElementById('cors-output').style.display = 'block';
 }
 
+/* ── YAML Linter / Formatter ── */
+/* Structure-aware indentation fixer. Uses a stack to track parent-child
+   relationships via original indent changes. For sequence items (- ),
+   pushes TWO stack entries: one for the dash position and one for the
+   content column, so continuation lines are correctly re-indented.
+   Preserves comments, key ordering, values, and overall structure. */
+const YAMLLint = (() => {
+
+  /* Normalize "key:    value" to "key: value", preserving quoted values */
+  function normalizeMappingLine(line) {
+    let inS = false, inD = false;
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i];
+      if (c === '\\') { i++; continue; }
+      if (c === '"' && !inS) inD = !inD;
+      if (c === "'" && !inD) inS = !inS;
+      if (c === ':' && !inS && !inD && (i + 1 >= line.length || line[i + 1] === ' ')) {
+        const key = line.slice(0, i);
+        const val = line.slice(i + 1).trim();
+        if (val === '') return key + ':';
+        return key + ': ' + val;
+      }
+    }
+    return line;
+  }
+
+  function isMappingKey(trimmed) {
+    let inS = false, inD = false;
+    for (let i = 0; i < trimmed.length; i++) {
+      const c = trimmed[i];
+      if (c === '\\') { i++; continue; }
+      if (c === '"' && !inS) inD = !inD;
+      if (c === "'" && !inD) inS = !inS;
+      if (c === ':' && !inS && !inD && (i + 1 >= trimmed.length || trimmed[i + 1] === ' ')) return true;
+    }
+    return false;
+  }
+
+  function format(text, targetIndent) {
+    targetIndent = targetIndent || 2;
+    const rawLines = text.replace(/\t/g, '  ').split('\n');
+    const warnings = [];
+
+    /*
+     * Stack approach:
+     * Each entry: { origIndent, outputIndent }
+     * - origIndent: the original indent level this entry was created for
+     * - outputIndent: the corrected indent to use for lines at this level
+     *
+     * For sequence items "- content":
+     *   1. Push entry for the dash position (origIndent = dash column, outputIndent = computed)
+     *   2. Push entry for the content column (origIndent = where content starts after "- ",
+     *      outputIndent = dashOutputIndent + 2)
+     *   This means continuation lines at the content column get properly indented.
+     */
+    const stack = [{ origIndent: -1, outputIndent: -targetIndent }];
+    const result = [];
+
+    let inBlockScalar = false;
+    let blockBaseOrigIndent = 0;
+    let blockBaseOutputIndent = 0;
+
+    // Track duplicate keys per document
+    let keyTracker = {};
+
+    for (let i = 0; i < rawLines.length; i++) {
+      const raw = rawLines[i];
+      const trimmed = raw.trim();
+      const origIndent = raw.match(/^( *)/)[1].length;
+      const lineNum = i + 1;
+
+      // Trailing whitespace is silently fixed by the formatter — no warning needed
+      // Warnings: tabs
+      if (raw.includes('\t')) {
+        warnings.push({ line: lineNum, msg: 'Tab character (converted to spaces)' });
+      }
+
+      // Blank lines
+      if (trimmed === '') { result.push(''); continue; }
+
+      // Document markers
+      if (trimmed === '---' || trimmed === '...') {
+        result.push(trimmed);
+        stack.length = 1;
+        stack[0] = { origIndent: -1, outputIndent: -targetIndent };
+        inBlockScalar = false;
+        keyTracker = {};
+        continue;
+      }
+
+      // Block scalar continuation: preserve content with relative indent
+      if (inBlockScalar) {
+        if (origIndent > blockBaseOrigIndent) {
+          const relIndent = origIndent - blockBaseOrigIndent;
+          result.push(' '.repeat(blockBaseOutputIndent + relIndent) + trimmed);
+          continue;
+        }
+        inBlockScalar = false;
+      }
+
+      // Comments: use the output indent of the next non-comment line, or parent context
+      if (trimmed.startsWith('#')) {
+        // Peek ahead to find the next non-blank, non-comment line's indent context
+        let commentOutputIndent = 0;
+        // Use current stack context
+        const tempStack = stack.slice();
+        while (tempStack.length > 1 && tempStack[tempStack.length - 1].origIndent >= origIndent) {
+          tempStack.pop();
+        }
+        const parent = tempStack[tempStack.length - 1];
+        if (origIndent > parent.origIndent) {
+          commentOutputIndent = parent.outputIndent + targetIndent;
+        } else {
+          commentOutputIndent = parent.outputIndent;
+        }
+        result.push(' '.repeat(Math.max(0, commentOutputIndent)) + trimmed);
+        continue;
+      }
+
+      const isSeqItem = trimmed.startsWith('- ') || trimmed === '-';
+
+      // Pop stack entries where origIndent >= current (we've dedented or are at same level)
+      while (stack.length > 1 && stack[stack.length - 1].origIndent >= origIndent) {
+        stack.pop();
+      }
+
+      const parent = stack[stack.length - 1];
+      const outputIndent = parent.outputIndent + targetIndent;
+
+      if (isSeqItem) {
+        const content = trimmed === '-' ? '' : trimmed.slice(2).trim();
+
+        // Push dash entry
+        stack.push({ origIndent, outputIndent });
+
+        // Find where content starts in the original line (after "- " plus any extra spaces)
+        let contentCol = origIndent + 1; // position after '-'
+        while (contentCol < raw.length && raw[contentCol] === ' ') contentCol++;
+        if (contentCol <= origIndent + 1) contentCol = origIndent + 2;
+
+        // Push content column entry so continuations map correctly
+        const contentOutputIndent = outputIndent + 2;
+        stack.push({ origIndent: contentCol, outputIndent: contentOutputIndent });
+
+        // Normalize content
+        let normalized = content;
+        if (content && isMappingKey(content)) {
+          normalized = normalizeMappingLine(content);
+        }
+
+        // Output
+        if (content === '') {
+          result.push(' '.repeat(outputIndent) + '-');
+        } else {
+          result.push(' '.repeat(outputIndent) + '- ' + normalized);
+        }
+
+        // Check for block scalar indicator in content
+        if (/^[|>][+\-]?\s*$/.test(content)) {
+          inBlockScalar = true;
+          blockBaseOrigIndent = contentCol;
+          blockBaseOutputIndent = contentOutputIndent;
+        } else if (/:\s+[|>][+\-]?\s*$/.test(normalized)) {
+          inBlockScalar = true;
+          blockBaseOrigIndent = contentCol;
+          blockBaseOutputIndent = contentOutputIndent;
+        }
+
+        // Sequence items start a new mapping scope — clear keys at the content level
+        // so sibling seq items can reuse the same keys (e.g. "name" in each container)
+        const contentDepthPrefix = contentOutputIndent + '|';
+        for (const k of Object.keys(keyTracker)) {
+          if (k.startsWith(contentDepthPrefix)) delete keyTracker[k];
+          // Also clear any deeper keys
+          const kDepth = parseInt(k.split('|')[0]);
+          if (kDepth >= contentOutputIndent) delete keyTracker[k];
+        }
+      } else {
+        // Regular line (mapping key, scalar, etc.)
+        stack.push({ origIndent, outputIndent });
+
+        // Normalize
+        let normalized = trimmed;
+        if (isMappingKey(trimmed)) {
+          normalized = normalizeMappingLine(trimmed);
+        }
+
+        result.push(' '.repeat(outputIndent) + normalized);
+
+        // Check for block scalar indicator
+        if (/:\s+[|>][+\-]?\s*$/.test(normalized)) {
+          inBlockScalar = true;
+          blockBaseOrigIndent = origIndent;
+          blockBaseOutputIndent = outputIndent;
+        }
+
+        // Duplicate key tracking
+        if (isMappingKey(trimmed) && !trimmed.startsWith('- ')) {
+          const key = normalized.split(':')[0].trim();
+          const depthKey = outputIndent + '|' + key;
+
+          // If this key has block children (key: with no inline value),
+          // clear deeper keys so sibling parent keys can reuse child key names
+          const valPart = normalized.slice(normalized.indexOf(':') + 1).trim();
+          const hasChildren = valPart === '' || /^[|>][+\-]?\s*$/.test(valPart);
+          if (hasChildren) {
+            for (const k of Object.keys(keyTracker)) {
+              const kDepth = parseInt(k.split('|')[0]);
+              if (kDepth > outputIndent) delete keyTracker[k];
+            }
+          }
+
+          if (keyTracker[depthKey]) {
+            warnings.push({ line: lineNum, msg: `Duplicate key "${key}" (first at line ${keyTracker[depthKey]})` });
+          } else {
+            keyTracker[depthKey] = lineNum;
+          }
+        }
+      }
+    }
+
+    // Trim trailing blank lines (keep at most one)
+    while (result.length > 1 && result[result.length - 1] === '' && result[result.length - 2] === '') {
+      result.pop();
+    }
+
+    return { output: result.join('\n'), warnings };
+  }
+
+  return { format };
+})();
+
+/* ── YAML Validate ── */
+function yamlValidate() {
+  const input = document.getElementById('yaml-in');
+  const output = document.getElementById('yaml-out');
+  setError('yaml-err', '');
+  input.classList.remove('error');
+  const val = input.value.trim();
+  if (!val) { setError('yaml-err', 'Please enter YAML to validate.'); input.classList.add('error'); return; }
+  const indent = parseInt(document.getElementById('yaml-indent').value, 10);
+  const { warnings } = YAMLLint.format(val, indent);
+  if (warnings.length === 0) {
+    output.value = 'Valid YAML! No issues found.';
+  } else {
+    output.value = 'Found ' + warnings.length + ' issue(s):\n\n' +
+      warnings.map(w => 'Line ' + w.line + ': ' + w.msg).join('\n');
+    input.classList.add('error');
+  }
+}
+
+/* ── YAML Beautify (Fix Indentation) ── */
+function yamlBeautify() {
+  const input = document.getElementById('yaml-in');
+  const output = document.getElementById('yaml-out');
+  const indent = parseInt(document.getElementById('yaml-indent').value, 10);
+  setError('yaml-err', '');
+  input.classList.remove('error');
+  const val = input.value;
+  if (!val.trim()) { output.value = ''; return; }
+  const { output: formatted, warnings } = YAMLLint.format(val, indent);
+  output.value = formatted;
+  if (warnings.length > 0) {
+    setError('yaml-err', warnings.length + ' issue(s) fixed — see output. (' +
+      warnings.slice(0, 3).map(w => 'L' + w.line + ': ' + w.msg).join('; ') +
+      (warnings.length > 3 ? '; ...' : '') + ')');
+  }
+}
+
+/* ── YAML Parser (text → JS object, for YAML→JSON conversion) ── */
+const YAMLParse = (() => {
+  function inferType(s) {
+    if (s === '' || s === 'null' || s === 'Null' || s === 'NULL' || s === '~') return null;
+    if (s === 'true' || s === 'True' || s === 'TRUE') return true;
+    if (s === 'false' || s === 'False' || s === 'FALSE') return false;
+    if (/^[-+]?0x[0-9a-fA-F]+$/.test(s)) return parseInt(s, 16);
+    if (/^[-+]?0o[0-7]+$/.test(s)) return parseInt(s.replace('0o', ''), 8);
+    if (/^[-+]?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?$/.test(s) && !isNaN(Number(s))) return Number(s);
+    if (/^[.](inf|Inf|INF)$/.test(s)) return Infinity;
+    if (/^-[.](inf|Inf|INF)$/.test(s)) return -Infinity;
+    if (/^[.](nan|NaN|NAN)$/.test(s)) return NaN;
+    return s;
+  }
+
+  function unquote(s) {
+    if (s.length >= 2 && s[0] === '"' && s[s.length - 1] === '"')
+      return s.slice(1, -1).replace(/\\n/g, '\n').replace(/\\t/g, '\t').replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+    if (s.length >= 2 && s[0] === "'" && s[s.length - 1] === "'")
+      return s.slice(1, -1).replace(/''/g, "'");
+    return null;
+  }
+
+  function scalar(s) { const u = unquote(s); return u !== null ? u : inferType(s); }
+
+  function splitFlow(s) {
+    const parts = []; let depth = 0, start = 0, inS = false, inD = false;
+    for (let i = 0; i < s.length; i++) {
+      const c = s[i];
+      if (c === '\\') { i++; continue; }
+      if (c === '"' && !inS) inD = !inD;
+      if (c === "'" && !inD) inS = !inS;
+      if (inS || inD) continue;
+      if (c === '[' || c === '{') depth++;
+      if (c === ']' || c === '}') depth--;
+      if (c === ',' && depth === 0) { parts.push(s.slice(start, i)); start = i + 1; }
+    }
+    parts.push(s.slice(start));
+    return parts;
+  }
+
+  function flowSeq(s) {
+    s = s.slice(1, -1).trim(); if (!s) return [];
+    return splitFlow(s).map(i => { i = i.trim(); return flowVal(i); });
+  }
+  function flowMap(s) {
+    s = s.slice(1, -1).trim(); if (!s) return {};
+    const obj = {};
+    for (const item of splitFlow(s)) {
+      const idx = item.indexOf(':');
+      if (idx === -1) continue;
+      obj[scalar(item.slice(0, idx).trim())] = flowVal(item.slice(idx + 1).trim());
+    }
+    return obj;
+  }
+  function flowVal(v) {
+    if (/^\{.*\}$/.test(v)) return flowMap(v);
+    if (/^\[.*\]$/.test(v)) return flowSeq(v);
+    return scalar(v);
+  }
+
+  function stripComment(line) {
+    let inS = false, inD = false;
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i];
+      if (c === '\\') { i++; continue; }
+      if (c === '"' && !inS) inD = !inD;
+      if (c === "'" && !inD) inS = !inS;
+      if (c === '#' && !inS && !inD && (i === 0 || line[i - 1] === ' ')) return line.slice(0, i);
+    }
+    return line;
+  }
+
+  function findColon(line) {
+    let inS = false, inD = false;
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i];
+      if (c === '\\') { i++; continue; }
+      if (c === '"' && !inS) inD = !inD;
+      if (c === "'" && !inD) inS = !inS;
+      if (c === ':' && !inS && !inD && (i + 1 >= line.length || line[i + 1] === ' ')) return i;
+    }
+    return -1;
+  }
+
+  function parse(text) {
+    const raw = text.replace(/\t/g, '  ').split('\n');
+    const lines = [];
+    for (let i = 0; i < raw.length; i++) {
+      const cleaned = stripComment(raw[i]).replace(/\s+$/, '');
+      lines.push(cleaned);
+    }
+    let pos = 0;
+    function indent(l) { const m = lines[l].match(/^( *)/); return m ? m[1].length : 0; }
+    function skip() { while (pos < lines.length && lines[pos].trim() === '') pos++; }
+
+    function parseNode(minInd) {
+      skip();
+      if (pos >= lines.length) return undefined;
+      while (pos < lines.length && /^---(\s|$)/.test(lines[pos].trim())) { pos++; skip(); }
+      if (pos >= lines.length) return undefined;
+      const ci = indent(pos);
+      if (ci < minInd) return undefined;
+      const t = lines[pos].trim();
+      if (/^\[.*\]$/.test(t)) { pos++; return flowSeq(t); }
+      if (/^\{.*\}$/.test(t)) { pos++; return flowMap(t); }
+      if (t.startsWith('- ') || t === '-') return parseSeq(ci);
+      if (findColon(t) !== -1) return parseMap(ci);
+      pos++;
+      return scalar(t);
+    }
+
+    function parseMap(base) {
+      const obj = {};
+      while (pos < lines.length) {
+        skip(); if (pos >= lines.length) break;
+        const ci = indent(pos);
+        if (ci !== base) break;
+        const t = lines[pos].trim();
+        if (t.startsWith('- ')) break;
+        const colIdx = findColon(t);
+        if (colIdx === -1) break;
+        const key = scalar(t.slice(0, colIdx).trim());
+        const valPart = t.slice(colIdx + 1).trim();
+        pos++;
+        if (valPart === '' || valPart === undefined) {
+          skip();
+          if (pos < lines.length && indent(pos) > base) {
+            obj[key] = parseNode(base + 1);
+          } else if (pos < lines.length && indent(pos) === base && lines[pos].trim().startsWith('- ')) {
+            // Sequence at same indent as parent key (common K8s pattern: "ports:\n- ...")
+            obj[key] = parseSeq(base);
+          } else { obj[key] = null; }
+        } else if (/^[|>][+\-]?\s*$/.test(valPart)) {
+          obj[key] = parseBlock(base, valPart[0] === '|' ? 'lit' : 'fold', valPart);
+        } else if (/^\[.*\]$/.test(valPart)) { obj[key] = flowSeq(valPart); }
+        else if (/^\{.*\}$/.test(valPart)) { obj[key] = flowMap(valPart); }
+        else { obj[key] = scalar(valPart); }
+      }
+      return obj;
+    }
+
+    function parseSeq(base) {
+      const arr = [];
+      while (pos < lines.length) {
+        skip(); if (pos >= lines.length) break;
+        const ci = indent(pos);
+        if (ci !== base) break;
+        const t = lines[pos].trim();
+        if (!t.startsWith('- ') && t !== '-') break;
+        const val = t === '-' ? '' : t.slice(2).trim();
+        pos++;
+        if (val === '') {
+          skip();
+          if (pos < lines.length && indent(pos) > base) arr.push(parseNode(base + 1));
+          else arr.push(null);
+        } else if (/^[|>][+\-]?\s*$/.test(val)) {
+          arr.push(parseBlock(base, val[0] === '|' ? 'lit' : 'fold', val));
+        } else if (/^\[.*\]$/.test(val)) { arr.push(flowSeq(val)); }
+        else if (/^\{.*\}$/.test(val)) { arr.push(flowMap(val)); }
+        else if (findColon(val) !== -1) {
+          // Inline mapping in seq: "- key: val"
+          const seqContentIndent = base + 2;
+          const savedLine = lines[pos - 1];
+          lines[pos - 1] = ' '.repeat(seqContentIndent) + val;
+          pos--;
+          arr.push(parseMap(seqContentIndent));
+          lines[pos > lines.length ? lines.length - 1 : pos - 1] = savedLine;
+        } else { arr.push(scalar(val)); }
+      }
+      return arr;
+    }
+
+    function parseBlock(base, style, indicator) {
+      const chomp = indicator.endsWith('-') ? 'strip' : indicator.endsWith('+') ? 'keep' : 'clip';
+      const bl = []; let bi = -1;
+      while (pos < lines.length) {
+        const r = lines[pos];
+        if (r.trim() === '') { bl.push(''); pos++; continue; }
+        const ci = indent(pos);
+        if (ci <= base) break;
+        if (bi === -1) bi = ci;
+        if (ci < bi) break;
+        bl.push(r.slice(bi));
+        pos++;
+      }
+      while (bl.length && bl[bl.length - 1] === '') bl.pop();
+      let res;
+      if (style === 'lit') { res = bl.join('\n'); }
+      else {
+        res = '';
+        for (const l of bl) {
+          if (l === '') res += '\n';
+          else res += (res && !res.endsWith('\n') ? ' ' : '') + l;
+        }
+      }
+      if (chomp === 'clip') res += '\n';
+      else if (chomp === 'keep') res += '\n';
+      return res;
+    }
+
+    // Handle multi-document: parse all documents, return array if >1
+    const docs = [];
+    while (pos < lines.length) {
+      skip();
+      if (pos >= lines.length) break;
+      if (/^---(\s|$)/.test(lines[pos].trim())) { pos++; continue; }
+      const doc = parseNode(0);
+      if (doc !== undefined) docs.push(doc);
+      // Skip trailing document end markers
+      skip();
+      if (pos < lines.length && /^\.\.\.(\s|$)/.test(lines[pos].trim())) pos++;
+    }
+    if (docs.length === 0) return null;
+    if (docs.length === 1) return docs[0];
+    return docs;
+  }
+
+  return parse;
+})();
+
+/* ── YAML → JSON ── */
+function yamlToJson() {
+  const input = document.getElementById('yaml-in');
+  const output = document.getElementById('yaml-out');
+  const indent = parseInt(document.getElementById('yaml-indent').value, 10);
+  setError('yaml-err', '');
+  input.classList.remove('error');
+  const val = input.value.trim();
+  if (!val) { output.value = ''; return; }
+  try {
+    const parsed = YAMLParse(val);
+    output.value = JSON.stringify(parsed, null, indent);
+  } catch (e) {
+    setError('yaml-err', 'Invalid YAML: ' + e.message);
+    input.classList.add('error');
+    output.value = '';
+  }
+}
+
+/* ── JSON → YAML ── */
+function jsonToYaml() {
+  const input = document.getElementById('yaml-in');
+  const output = document.getElementById('yaml-out');
+  const indent = parseInt(document.getElementById('yaml-indent').value, 10);
+  setError('yaml-err', '');
+  input.classList.remove('error');
+  const val = input.value.trim();
+  if (!val) { output.value = ''; return; }
+  try {
+    const parsed = JSON.parse(val);
+    output.value = jsonObjToYaml(parsed, indent, 0);
+  } catch (e) {
+    setError('yaml-err', 'Invalid JSON: ' + e.message);
+    input.classList.add('error');
+    output.value = '';
+  }
+}
+
+/* Simple JSON object → YAML serializer (no full YAML parser needed) */
+function jsonObjToYaml(value, indent, depth) {
+  indent = indent || 2;
+  const pad = ' '.repeat(indent * depth);
+  const childPad = ' '.repeat(indent * (depth + 1));
+
+  if (value === null || value === undefined) return 'null';
+  if (typeof value === 'boolean') return value.toString();
+  if (typeof value === 'number') return value.toString();
+  if (typeof value === 'string') {
+    if (value === '' || value === 'null' || value === 'true' || value === 'false' ||
+        /^[-+]?\d/.test(value) || value.includes(': ') || value.includes('#') ||
+        value.startsWith('- ') || value.startsWith('{') || value.startsWith('[') ||
+        value.includes('\n')) {
+      if (value.includes('\n')) {
+        const lines = value.replace(/\n$/, '').split('\n');
+        return '|\n' + lines.map(l => childPad + l).join('\n');
+      }
+      if (value.includes('"')) return "'" + value.replace(/'/g, "''") + "'";
+      return '"' + value.replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"';
+    }
+    return value;
+  }
+  if (Array.isArray(value)) {
+    if (value.length === 0) return '[]';
+    return value.map(item => {
+      if (typeof item === 'object' && item !== null && !Array.isArray(item)) {
+        const s = jsonObjToYaml(item, indent, depth + 1);
+        const mapLines = s.split('\n');
+        return pad + '- ' + mapLines[0].trim() + (mapLines.length > 1 ? '\n' + mapLines.slice(1).join('\n') : '');
+      }
+      if (Array.isArray(item)) return pad + '-\n' + jsonObjToYaml(item, indent, depth + 1);
+      return pad + '- ' + jsonObjToYaml(item, indent, depth + 1);
+    }).join('\n');
+  }
+  if (typeof value === 'object') {
+    const keys = Object.keys(value);
+    if (keys.length === 0) return '{}';
+    return keys.map(k => {
+      const v = value[k];
+      const keyStr = /[:{}\[\],&*#?|>!'"%@`]/.test(k) || k === '' || /^\d/.test(k) ? '"' + k.replace(/"/g, '\\"') + '"' : k;
+      if (v === null || v === undefined) return pad + keyStr + ':';
+      if (typeof v === 'object' && v !== null) return pad + keyStr + ':\n' + jsonObjToYaml(v, indent, depth + 1);
+      return pad + keyStr + ': ' + jsonObjToYaml(v, indent, depth + 1);
+    }).join('\n');
+  }
+  return String(value);
+}
+
 /* ── PEM / Certificate Decoder ── */
 const PEM = (() => {
   // OID name lookup
