@@ -1910,6 +1910,221 @@ function clearPem() {
   r.style.display = 'none'; r.innerHTML = '';
 }
 
+/* ── CSR Decoder ── */
+async function csrDec() {
+  const input = document.getElementById('csrdec-in');
+  const resultsEl = document.getElementById('csrdec-results');
+  setError('csrdec-err', '');
+  input.classList.remove('error');
+  resultsEl.style.display = 'none';
+  resultsEl.innerHTML = '';
+
+  const val = input.value.trim();
+  if (!val) { setError('csrdec-err', 'Please paste a PEM CSR.'); input.classList.add('error'); return; }
+
+  try {
+    const b64 = val.replace(/-----BEGIN (NEW )?CERTIFICATE REQUEST-----/, '')
+      .replace(/-----END (NEW )?CERTIFICATE REQUEST-----/, '')
+      .replace(/\s/g, '');
+    if (!b64) throw new Error('No CSR data found. Expected -----BEGIN CERTIFICATE REQUEST----- block.');
+    const raw = atob(b64);
+    const der = new Uint8Array(raw.length);
+    for (let i = 0; i < raw.length; i++) der[i] = raw.charCodeAt(i);
+
+    const root = PEM.parseDER(der, 0, der.length);
+    if (!root.length || !root[0].children || root[0].children.length < 3)
+      throw new Error('Invalid PKCS#10 CSR structure.');
+
+    const csr = root[0];
+    const certReqInfo = csr.children[0]; // CertificationRequestInfo
+    const sigAlgoNode = csr.children[1];
+
+    if (!certReqInfo.children || certReqInfo.children.length < 3)
+      throw new Error('Invalid CertificationRequestInfo.');
+
+    // Version
+    let idx = 0;
+    const version = certReqInfo.children[idx].bytes[0];
+    idx++;
+
+    // Subject
+    const subjectNode = certReqInfo.children[idx++];
+    const subject = parseCSRName(subjectNode);
+
+    // SubjectPublicKeyInfo
+    const spki = certReqInfo.children[idx++];
+    const pubKeyInfo = parseCSRPublicKey(spki);
+
+    // Attributes [0] — may contain SANs extension request
+    let sans = [];
+    if (idx < certReqInfo.children.length) {
+      const attrs = certReqInfo.children[idx];
+      if ((attrs.tag & 0xe0) === 0xa0) {
+        const attrNodes = PEM.parseDER(attrs.bytes, 0, attrs.bytes.length);
+        for (const attr of attrNodes) {
+          if (!attr.children || attr.children.length < 2) continue;
+          const attrOid = PEM.readOID(attr.children[0].bytes);
+          if (attrOid === '1.2.840.113549.1.9.14') {
+            // extensionRequest
+            const extSet = attr.children[1];
+            const extSeqNodes = extSet.children || PEM.parseDER(extSet.bytes, 0, extSet.bytes.length);
+            for (const extSeq of extSeqNodes) {
+              const exts = extSeq.children || PEM.parseDER(extSeq.bytes, 0, extSeq.bytes.length);
+              for (const ext of exts) {
+                if (!ext.children || ext.children.length < 2) continue;
+                const extOid = PEM.readOID(ext.children[0].bytes);
+                if (extOid === '2.5.29.17') {
+                  // SAN
+                  const sanValue = ext.children[ext.children.length - 1];
+                  const sanBytes = sanValue.tag === 0x04 ? sanValue.bytes : sanValue.bytes;
+                  const sanSeq = PEM.parseDER(sanBytes, 0, sanBytes.length);
+                  if (sanSeq.length && sanSeq[0].children) {
+                    for (const gn of sanSeq[0].children) {
+                      const tagNum = gn.tag & 0x1f;
+                      if (tagNum === 2) sans.push('DNS: ' + PEM.readUTF8(gn.bytes));
+                      else if (tagNum === 7 && gn.bytes.length === 4) sans.push('IP: ' + Array.from(gn.bytes).join('.'));
+                      else if (tagNum === 7 && gn.bytes.length === 16) {
+                        const p = [];
+                        for (let i = 0; i < 16; i += 2) p.push(((gn.bytes[i] << 8) | gn.bytes[i+1]).toString(16));
+                        sans.push('IP: ' + p.join(':'));
+                      }
+                      else if (tagNum === 1) sans.push('Email: ' + PEM.readUTF8(gn.bytes));
+                      else if (tagNum === 6) sans.push('URI: ' + PEM.readUTF8(gn.bytes));
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Signature algorithm
+    let sigAlgo = 'Unknown';
+    const OID_SIG = {
+      '1.2.840.113549.1.1.5': 'SHA-1 with RSA',
+      '1.2.840.113549.1.1.11': 'SHA-256 with RSA',
+      '1.2.840.113549.1.1.12': 'SHA-384 with RSA',
+      '1.2.840.113549.1.1.13': 'SHA-512 with RSA',
+      '1.2.840.10045.4.3.2': 'ECDSA with SHA-256',
+      '1.2.840.10045.4.3.3': 'ECDSA with SHA-384',
+      '1.2.840.10045.4.3.4': 'ECDSA with SHA-512',
+    };
+    if (sigAlgoNode.children && sigAlgoNode.children.length > 0) {
+      const oid = PEM.readOID(sigAlgoNode.children[0].bytes);
+      sigAlgo = OID_SIG[oid] || oid;
+    }
+
+    // Fingerprint
+    const sha256 = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', der)))
+      .map(b => b.toString(16).padStart(2, '0').toUpperCase()).join(':');
+
+    // Render
+    const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const nameLabels = {
+      CN: 'Common Name', O: 'Organization', OU: 'Department',
+      L: 'City', ST: 'State / Province', C: 'Country',
+      emailAddress: 'Email', DC: 'Domain Component',
+    };
+    const nameOrder = ['CN', 'O', 'OU', 'L', 'ST', 'C', 'emailAddress', 'DC'];
+
+    function renderFields(fields) {
+      const keys = nameOrder.filter(k => fields[k]).concat(Object.keys(fields).filter(k => !nameOrder.includes(k)));
+      return keys.map(k => {
+        const label = nameLabels[k] || k;
+        return `<div class="pem-field"><span class="pem-label">${esc(label)}</span><span class="pem-value">${esc(fields[k])}</span></div>`;
+      }).join('');
+    }
+
+    resultsEl.innerHTML = `<div class="pem-cert">
+      <div class="pem-section"><div class="pem-section-title">Subject</div>${renderFields(subject)}</div>
+      ${sans.length ? `<div class="pem-section"><div class="pem-section-title">Subject Alternative Names (${sans.length})</div>
+        <div class="pem-sans">${sans.map(s => `<span class="pem-san-tag">${esc(s)}</span>`).join('')}</div></div>` : ''}
+      <div class="pem-section"><div class="pem-section-title">Public Key</div>
+        <div class="pem-field"><span class="pem-label">Algorithm</span><span class="pem-value">${esc(pubKeyInfo.algorithm)}</span></div>
+        <div class="pem-field"><span class="pem-label">Key Size</span><span class="pem-value">${pubKeyInfo.bits} bit</span></div>
+      </div>
+      <div class="pem-section"><div class="pem-section-title">Details</div>
+        <div class="pem-field"><span class="pem-label">Version</span><span class="pem-value">${version === 0 ? 'v1 (0)' : 'v' + (version + 1)}</span></div>
+        <div class="pem-field"><span class="pem-label">Signature Algo</span><span class="pem-value">${esc(sigAlgo)}</span></div>
+      </div>
+      <div class="pem-section"><div class="pem-section-title">Fingerprint</div>
+        <div class="pem-field"><span class="pem-label">SHA-256</span><span class="pem-value pem-hash">${sha256}</span>
+          <button class="btn btn-secondary" style="padding:2px 10px;font-size:0.7rem;flex-shrink:0;" onclick="copyVal('${sha256.replace(/'/g, "\\'")}')">Copy</button></div>
+      </div>
+    </div>`;
+    resultsEl.style.display = 'flex';
+  } catch (e) {
+    setError('csrdec-err', e.message);
+    input.classList.add('error');
+  }
+}
+
+function parseCSRName(node) {
+  const OID_NAMES = {
+    '2.5.4.3': 'CN', '2.5.4.6': 'C', '2.5.4.7': 'L', '2.5.4.8': 'ST',
+    '2.5.4.10': 'O', '2.5.4.11': 'OU', '1.2.840.113549.1.9.1': 'emailAddress',
+    '0.9.2342.19200300.100.1.25': 'DC',
+  };
+  const fields = {};
+  if (!node.children) return fields;
+  for (const set of node.children) {
+    if (!set.children) continue;
+    for (const seq of set.children) {
+      if (!seq.children || seq.children.length < 2) continue;
+      const oid = PEM.readOID(seq.children[0].bytes);
+      const val = PEM.readUTF8(seq.children[1].bytes);
+      const name = OID_NAMES[oid] || oid;
+      fields[name] = val;
+    }
+  }
+  return fields;
+}
+
+function parseCSRPublicKey(spki) {
+  const OID_ALGO = {
+    '1.2.840.113549.1.1.1': 'RSA',
+    '1.2.840.10045.2.1': 'EC',
+    '1.3.101.112': 'Ed25519',
+  };
+  const OID_CURVES = {
+    '1.2.840.10045.3.1.7': 'P-256',
+    '1.3.132.0.34': 'P-384',
+    '1.3.132.0.35': 'P-521',
+  };
+  if (!spki.children || spki.children.length < 2) return { algorithm: 'Unknown', bits: 0 };
+  const algoSeq = spki.children[0];
+  const keyBits = spki.children[1];
+  let algo = 'Unknown', params = '';
+  if (algoSeq.children && algoSeq.children.length > 0) {
+    const oid = PEM.readOID(algoSeq.children[0].bytes);
+    algo = OID_ALGO[oid] || oid;
+    if (algoSeq.children.length > 1 && algoSeq.children[1].tag === 0x06) {
+      const curveOid = PEM.readOID(algoSeq.children[1].bytes);
+      params = OID_CURVES[curveOid] || curveOid;
+    }
+  }
+  let bits = keyBits.bytes.length > 0 ? (keyBits.bytes.length - 1) * 8 : 0;
+  if (algo === 'RSA' && keyBits.bytes.length > 1) {
+    const inner = PEM.parseDER(keyBits.bytes, 1, keyBits.bytes.length);
+    if (inner.length && inner[0].children && inner[0].children.length > 0) {
+      bits = (inner[0].children[0].bytes.length - (inner[0].children[0].bytes[0] === 0 ? 1 : 0)) * 8;
+    }
+  }
+  const display = algo + (params ? ' (' + params + ')' : '');
+  return { algorithm: display, bits };
+}
+
+function clearCsrDec() {
+  document.getElementById('csrdec-in').value = '';
+  document.getElementById('csrdec-in').classList.remove('error');
+  setError('csrdec-err', '');
+  const r = document.getElementById('csrdec-results');
+  r.style.display = 'none'; r.innerHTML = '';
+}
+
+
 /* ── CSR Generator ── */
 const CSR = (() => {
   // ASN.1 DER encoding helpers
@@ -2919,6 +3134,7 @@ document.getElementById('b64urldec-in').addEventListener('input', b64urlDecode);
 document.getElementById('regex-pattern').addEventListener('input', regexTest);
 document.getElementById('regex-test').addEventListener('input', regexTest);
 document.getElementById('pem-in').addEventListener('input', pemDecode);
+document.getElementById('csrdec-in').addEventListener('input', csrDec);
 // Init HTTP table on load
 renderHttpTable('');
 

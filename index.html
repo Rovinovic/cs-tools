@@ -37,6 +37,7 @@
         <button data-tab="jwt">JWT Decode</button>
         <button data-tab="saml">SAML Decode</button>
         <button data-tab="pem">PEM Decoder</button>
+        <button data-tab="csrdec">CSR Decoder</button>
       </div>
     </div>
 
@@ -810,6 +811,24 @@
 
       <!-- Timeline grid -->
       <div id="tz-grid" class="tz-grid"></div>
+    </div>
+
+    <!-- ═══ CSR Decoder ═══ -->
+    <div class="tab-panel" id="tab-csrdec">
+      <div class="panel-title">
+        <span class="icon">📋</span> CSR Decoder
+      </div>
+      <div class="io-box">
+        <label>Input (PEM CSR)</label>
+        <textarea id="csrdec-in" placeholder="Paste CSR (-----BEGIN CERTIFICATE REQUEST-----) …" style="height:180px;"></textarea>
+      </div>
+      <div class="err-msg" id="csrdec-err"></div>
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="csrDec()">⚡ Decode</button>
+        <span class="spacer"></span>
+        <button class="btn btn-danger" onclick="clearCsrDec()">Clear</button>
+      </div>
+      <div id="csrdec-results" style="display:none;margin-top:16px;flex-direction:column;gap:8px;"></div>
     </div>
 
     <!-- ═══ Keystore / Truststore Viewer ═══ -->
