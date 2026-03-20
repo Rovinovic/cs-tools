@@ -3841,3 +3841,76 @@ document.getElementById('subnet-cidr').addEventListener('input', function() {
   }
 });
 
+/* ── Tool Search ── */
+(function() {
+  const searchInput = document.getElementById('tool-search');
+  const searchResults = document.getElementById('search-results');
+  if (!searchInput || !searchResults) return;
+
+  // Build tool index from nav buttons
+  const toolIndex = [];
+  document.querySelectorAll('nav button[data-tab]').forEach(btn => {
+    const cat = btn.closest('.nav-category');
+    let catName = '';
+    if (cat) {
+      const hdr = cat.querySelector('.cat-header');
+      if (hdr) {
+        const clone = hdr.cloneNode(true);
+        clone.querySelectorAll('.material-symbols-outlined, .cat-arrow').forEach(el => el.remove());
+        catName = clone.textContent.trim();
+      }
+    }
+    toolIndex.push({
+      id: btn.dataset.tab,
+      name: btn.textContent.trim(),
+      category: catName
+    });
+  });
+
+  let selIdx = -1;
+
+  function renderResults(query) {
+    searchResults.innerHTML = '';
+    selIdx = -1;
+    if (!query) { searchResults.classList.remove('open'); return; }
+    const q = query.toLowerCase();
+    const matches = toolIndex.filter(t =>
+      t.name.toLowerCase().includes(q) || t.category.toLowerCase().includes(q) || t.id.toLowerCase().includes(q)
+    );
+    if (!matches.length) {
+      searchResults.innerHTML = '<div class="search-no-results">No tools found</div>';
+      searchResults.classList.add('open');
+      return;
+    }
+    matches.forEach((t, i) => {
+      const item = document.createElement('div');
+      item.className = 'search-result-item';
+      item.innerHTML = '<span class="search-result-name">' + t.name + '</span><span class="search-result-cat">' + t.category + '</span>';
+      item.addEventListener('click', () => {
+        navigateToTab(t.id);
+        searchInput.value = '';
+        searchResults.classList.remove('open');
+        searchInput.blur();
+      });
+      searchResults.appendChild(item);
+    });
+    searchResults.classList.add('open');
+  }
+
+  searchInput.addEventListener('input', () => renderResults(searchInput.value.trim()));
+
+  searchInput.addEventListener('keydown', function(e) {
+    const items = searchResults.querySelectorAll('.search-result-item');
+    if (!items.length) return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); selIdx = Math.min(selIdx + 1, items.length - 1); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); selIdx = Math.max(selIdx - 1, 0); }
+    else if (e.key === 'Enter' && selIdx >= 0) { e.preventDefault(); items[selIdx].click(); return; }
+    else if (e.key === 'Escape') { searchResults.classList.remove('open'); searchInput.blur(); return; }
+    else return;
+    items.forEach((it, i) => it.classList.toggle('active', i === selIdx));
+    items[selIdx]?.scrollIntoView({ block: 'nearest' });
+  });
+
+  searchInput.addEventListener('blur', () => setTimeout(() => searchResults.classList.remove('open'), 150));
+  searchInput.addEventListener('focus', () => { if (searchInput.value.trim()) renderResults(searchInput.value.trim()); });
+})();
