@@ -658,6 +658,35 @@ input[type="range"] { flex: 1; accent-color: var(--accent); cursor: pointer; }
   .tz-cell { min-width: 36px; }
 }
 
+/* ── Homepage ── */
+.home-hero { text-align: center; padding: 32px 0 28px; }
+.home-title { font-size: 1.5rem; font-weight: 700; color: var(--text); margin-bottom: 8px; }
+.home-subtitle { font-size: 0.88rem; color: var(--muted); max-width: 520px; margin: 0 auto; line-height: 1.6; }
+.home-category { margin-bottom: 28px; }
+.home-cat-title {
+  font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--muted); display: flex; align-items: center; gap: 6px;
+  margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border);
+}
+.home-cat-title .material-symbols-outlined { font-size: 18px; }
+.home-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+.home-card {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 18px 16px; cursor: pointer; text-align: left; font-family: inherit;
+  display: flex; flex-direction: column; gap: 4px;
+  transition: background 0.15s, border-color 0.15s, transform 0.1s;
+  color: inherit;
+}
+.home-card:hover { background: var(--surface2); border-color: var(--accent); transform: translateY(-2px); }
+.home-card:active { transform: scale(0.98); }
+.home-card-icon { font-size: 28px; color: var(--accent); margin-bottom: 4px; }
+.home-card-name { font-size: 0.88rem; font-weight: 600; color: var(--text); }
+.home-card-desc { font-size: 0.76rem; color: var(--muted); line-height: 1.4; }
+
+@media (max-width: 760px) {
+  .home-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
+}
+
 /* ── CSR Generator ── */
 .csr-form {
   display: flex; flex-direction: column; gap: 14px;

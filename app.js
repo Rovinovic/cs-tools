@@ -1,13 +1,36 @@
 /* ── Tab navigation ── */
+function navigateToTab(tabId) {
+  document.querySelectorAll('nav button[data-tab]').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  const navBtn = document.querySelector(`nav button[data-tab="${tabId}"]`);
+  if (navBtn) {
+    navBtn.classList.add('active');
+    navBtn.closest('.nav-category')?.classList.add('open');
+  }
+  document.getElementById('tab-' + tabId).classList.add('active');
+  document.querySelector('.content').scrollTop = 0;
+}
+
 document.querySelectorAll('nav button[data-tab]').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('nav button[data-tab]').forEach(b => b.classList.remove('active'));
-    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-    btn.classList.add('active');
-    document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
-    btn.closest('.nav-category')?.classList.add('open');
-  });
+  btn.addEventListener('click', () => navigateToTab(btn.dataset.tab));
 });
+
+// Homepage card navigation
+document.querySelectorAll('.home-card[data-tab]').forEach(card => {
+  card.addEventListener('click', () => navigateToTab(card.dataset.tab));
+});
+
+// Click header to return to homepage
+function showHome() {
+  document.querySelectorAll('nav button[data-tab]').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('tab-home').classList.add('active');
+  document.querySelector('.content').scrollTop = 0;
+}
+document.querySelector('header h1').style.cursor = 'pointer';
+document.querySelector('header h1').addEventListener('click', showHome);
+document.querySelector('header img').style.cursor = 'pointer';
+document.querySelector('header img').addEventListener('click', showHome);
 
 function toggleCategory(headerBtn) {
   headerBtn.closest('.nav-category').classList.toggle('open');

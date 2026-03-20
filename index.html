@@ -26,7 +26,7 @@
         <span class="material-symbols-outlined cat-icon">sync_alt</span> Encode / Decode <span class="cat-arrow">▾</span>
       </button>
       <div class="cat-items">
-        <button class="active" data-tab="b64enc">Base64 Encode</button>
+        <button data-tab="b64enc">Base64 Encode</button>
         <button data-tab="b64dec">Base64 Decode</button>
         <button data-tab="urlenc">URL Encode</button>
         <button data-tab="urldec">URL Decode</button>
@@ -83,8 +83,177 @@
 
   <div class="content">
 
+    <!-- ═══ Homepage ═══ -->
+    <div class="tab-panel active" id="tab-home">
+      <div class="home-hero">
+        <h2 class="home-title">Support Utils</h2>
+        <p class="home-subtitle">Browser-based utilities for WSO2 Customer Success engineers.</p>
+        <p class="home-subtitle">All processing happens locally, no data leaves your browser.</p>
+      </div>
+
+      <div class="home-category">
+        <h3 class="home-cat-title"><span class="material-symbols-outlined">sync_alt</span> Encode / Decode</h3>
+        <div class="home-grid">
+          <button class="home-card" data-tab="b64enc">
+            <span class="material-symbols-outlined home-card-icon">lock</span>
+            <span class="home-card-name">Base64 Encode</span>
+            <span class="home-card-desc">Encode text to Base64</span>
+          </button>
+          <button class="home-card" data-tab="b64dec">
+            <span class="material-symbols-outlined home-card-icon">lock_open</span>
+            <span class="home-card-name">Base64 Decode</span>
+            <span class="home-card-desc">Decode Base64 to text</span>
+          </button>
+          <button class="home-card" data-tab="urlenc">
+            <span class="material-symbols-outlined home-card-icon">link</span>
+            <span class="home-card-name">URL Encode</span>
+            <span class="home-card-desc">Percent-encode URLs and strings</span>
+          </button>
+          <button class="home-card" data-tab="urldec">
+            <span class="material-symbols-outlined home-card-icon">link_off</span>
+            <span class="home-card-name">URL Decode</span>
+            <span class="home-card-desc">Decode percent-encoded URLs</span>
+          </button>
+          <button class="home-card" data-tab="htmlenc">
+            <span class="material-symbols-outlined home-card-icon">code</span>
+            <span class="home-card-name">HTML Encode</span>
+            <span class="home-card-desc">Escape HTML special characters</span>
+          </button>
+          <button class="home-card" data-tab="htmldec">
+            <span class="material-symbols-outlined home-card-icon">code_off</span>
+            <span class="home-card-name">HTML Decode</span>
+            <span class="home-card-desc">Unescape HTML entities</span>
+          </button>
+          <button class="home-card" data-tab="b64urlenc">
+            <span class="material-symbols-outlined home-card-icon">enhanced_encryption</span>
+            <span class="home-card-name">B64 URL Encode</span>
+            <span class="home-card-desc">URL-safe Base64 encoding</span>
+          </button>
+          <button class="home-card" data-tab="b64urldec">
+            <span class="material-symbols-outlined home-card-icon">no_encryption</span>
+            <span class="home-card-name">B64 URL Decode</span>
+            <span class="home-card-desc">URL-safe Base64 decoding</span>
+          </button>
+          <button class="home-card" data-tab="jwt">
+            <span class="material-symbols-outlined home-card-icon">token</span>
+            <span class="home-card-name">JWT Decode</span>
+            <span class="home-card-desc">Decode and inspect JWT tokens</span>
+          </button>
+          <button class="home-card" data-tab="saml">
+            <span class="material-symbols-outlined home-card-icon">shield</span>
+            <span class="home-card-name">SAML Decode</span>
+            <span class="home-card-desc">Decode SAML requests and responses</span>
+          </button>
+          <button class="home-card" data-tab="pem">
+            <span class="material-symbols-outlined home-card-icon">verified_user</span>
+            <span class="home-card-name">PEM Decoder</span>
+            <span class="home-card-desc">Decode X.509 PEM certificates</span>
+          </button>
+          <button class="home-card" data-tab="csrdec">
+            <span class="material-symbols-outlined home-card-icon">fact_check</span>
+            <span class="home-card-name">CSR Decoder</span>
+            <span class="home-card-desc">Decode and inspect CSR contents</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="home-category">
+        <h3 class="home-cat-title"><span class="material-symbols-outlined">data_object</span> Format</h3>
+        <div class="home-grid">
+          <button class="home-card" data-tab="jsonbeautify">
+            <span class="material-symbols-outlined home-card-icon">data_object</span>
+            <span class="home-card-name">JSON Beautify</span>
+            <span class="home-card-desc">Format and validate JSON</span>
+          </button>
+          <button class="home-card" data-tab="xmlbeautify">
+            <span class="material-symbols-outlined home-card-icon">code_blocks</span>
+            <span class="home-card-name">XML Beautify</span>
+            <span class="home-card-desc">Format and indent XML</span>
+          </button>
+          <button class="home-card" data-tab="yaml">
+            <span class="material-symbols-outlined home-card-icon">description</span>
+            <span class="home-card-name">YAML Linter</span>
+            <span class="home-card-desc">Lint, format, and convert YAML</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="home-category">
+        <h3 class="home-cat-title"><span class="material-symbols-outlined">add_circle</span> Generate</h3>
+        <div class="home-grid">
+          <button class="home-card" data-tab="hash">
+            <span class="material-symbols-outlined home-card-icon">fingerprint</span>
+            <span class="home-card-name">Hash Generator</span>
+            <span class="home-card-desc">Generate SHA and MD5 hashes</span>
+          </button>
+          <button class="home-card" data-tab="pwgen">
+            <span class="material-symbols-outlined home-card-icon">password</span>
+            <span class="home-card-name">Password Generator</span>
+            <span class="home-card-desc">Generate secure random passwords</span>
+          </button>
+          <button class="home-card" data-tab="uuid">
+            <span class="material-symbols-outlined home-card-icon">numbers</span>
+            <span class="home-card-name">UUID Generator</span>
+            <span class="home-card-desc">Generate v4 UUIDs</span>
+          </button>
+          <button class="home-card" data-tab="csr">
+            <span class="material-symbols-outlined home-card-icon">award_star</span>
+            <span class="home-card-name">CSR Generator</span>
+            <span class="home-card-desc">Generate certificate signing requests</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="home-category">
+        <h3 class="home-cat-title"><span class="material-symbols-outlined">handyman</span> Utilities</h3>
+        <div class="home-grid">
+          <button class="home-card" data-tab="regex">
+            <span class="material-symbols-outlined home-card-icon">manage_search</span>
+            <span class="home-card-name">Regex Tester</span>
+            <span class="home-card-desc">Test regular expressions live</span>
+          </button>
+          <button class="home-card" data-tab="diff">
+            <span class="material-symbols-outlined home-card-icon">compare</span>
+            <span class="home-card-name">Diff Viewer</span>
+            <span class="home-card-desc">Compare two text blocks</span>
+          </button>
+          <button class="home-card" data-tab="timestamp">
+            <span class="material-symbols-outlined home-card-icon">schedule</span>
+            <span class="home-card-name">Timestamp Converter</span>
+            <span class="home-card-desc">Convert Unix timestamps and dates</span>
+          </button>
+          <button class="home-card" data-tab="httpstatus">
+            <span class="material-symbols-outlined home-card-icon">http</span>
+            <span class="home-card-name">HTTP Status Codes</span>
+            <span class="home-card-desc">HTTP status code reference</span>
+          </button>
+          <button class="home-card" data-tab="cors">
+            <span class="material-symbols-outlined home-card-icon">swap_horiz</span>
+            <span class="home-card-name">CORS Builder</span>
+            <span class="home-card-desc">Generate CORS response headers</span>
+          </button>
+          <button class="home-card" data-tab="timezones">
+            <span class="material-symbols-outlined home-card-icon">public</span>
+            <span class="home-card-name">Time Zone Converter</span>
+            <span class="home-card-desc">Compare times across world zones</span>
+          </button>
+          <button class="home-card" data-tab="keystore">
+            <span class="material-symbols-outlined home-card-icon">key</span>
+            <span class="home-card-name">Keystore Viewer</span>
+            <span class="home-card-desc">Inspect JKS, PKCS#12 and PEM files</span>
+          </button>
+          <button class="home-card" data-tab="subnet">
+            <span class="material-symbols-outlined home-card-icon">lan</span>
+            <span class="home-card-name">IP / Subnet Calculator</span>
+            <span class="home-card-desc">Calculate subnets, ranges and masks</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+
     <!-- ═══ Base64 Encode ═══ -->
-    <div class="tab-panel active" id="tab-b64enc">
+    <div class="tab-panel" id="tab-b64enc">
       <div class="panel-title">
         <span class="icon">B</span> Base64 Encode
       </div>
