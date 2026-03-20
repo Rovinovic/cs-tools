@@ -76,6 +76,7 @@
         <button data-tab="cors">CORS Builder</button>
         <button data-tab="timezones">Time Converter</button>
         <button data-tab="keystore">Keystore Viewer</button>
+        <button data-tab="subnet">IP / Subnet Calculator</button>
       </div>
     </div>
   </nav>
@@ -854,6 +855,55 @@
       </div>
       <div id="ks-summary" class="ks-summary" style="display:none;"></div>
       <div id="ks-results" style="display:none;flex-direction:column;gap:16px;margin-top:8px;"></div>
+    </div>
+
+    <!-- ═══ IP / Subnet Calculatorulator ═══ -->
+    <div class="tab-panel" id="tab-subnet">
+      <div class="panel-title">
+        <span class="icon"><span class="material-symbols-outlined" style="font-size:16px;color:#fff;">lan</span></span> IP / Subnet Calculatorulator
+      </div>
+
+      <div class="subnet-input-row">
+        <div class="subnet-field">
+          <label class="subnet-label">IP Address</label>
+          <input id="subnet-ip" type="text" class="text-input" placeholder="192.168.1.0" />
+        </div>
+        <div class="subnet-field subnet-field-sm">
+          <label class="subnet-label">CIDR / Prefix</label>
+          <div class="subnet-cidr-row">
+            <span class="subnet-slash">/</span>
+            <input id="subnet-cidr" type="number" class="text-input" min="0" max="32" value="24" />
+          </div>
+        </div>
+        <div class="subnet-field">
+          <label class="subnet-label">or Subnet Mask</label>
+          <input id="subnet-mask-in" type="text" class="text-input" placeholder="255.255.255.0" />
+        </div>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="subnetCalc()">Calculate</button>
+        <span class="spacer"></span>
+        <button class="btn btn-danger" onclick="subnetClear()">Clear</button>
+      </div>
+      <div class="err-msg" id="subnet-err"></div>
+
+      <div id="subnet-results" style="display:none;">
+        <div class="subnet-results-grid" id="subnet-grid"></div>
+        <div class="subnet-section" id="subnet-binary-section" style="display:none;">
+          <h4 class="subnet-section-title">Binary Breakdown</h4>
+          <div id="subnet-binary" class="subnet-binary"></div>
+        </div>
+        <div class="subnet-section" id="subnet-all-section" style="display:none;">
+          <h4 class="subnet-section-title">All Subnets in this Network Class</h4>
+          <div id="subnet-table-wrap" class="subnet-table-wrap">
+            <table class="subnet-table" id="subnet-table">
+              <thead><tr><th>Subnet</th><th>Host Range</th><th>Broadcast</th></tr></thead>
+              <tbody id="subnet-table-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
     </div>
 
   </div><!-- .content -->

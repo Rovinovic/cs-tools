@@ -3624,3 +3624,197 @@ function tzAddRow(tz) {
 
 // Init on load
 tzSetToday();
+/* ── IP / Subnet Calculator ── */
+function parseIPv4(str) {
+  const parts = str.trim().split('.');
+  if (parts.length !== 4) return null;
+  const nums = parts.map(p => { const n = parseInt(p, 10); return (isNaN(n) || n < 0 || n > 255 || String(n) !== p.trim()) ? -1 : n; });
+  if (nums.some(n => n < 0)) return null;
+  return nums;
+}
+
+function ipToInt(parts) { return ((parts[0] << 24) | (parts[1] << 16) | (parts[2] << 8) | parts[3]) >>> 0; }
+function intToIP(n) { return [(n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255].join('.'); }
+function intToBin(n) {
+  return [(n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255]
+    .map(b => b.toString(2).padStart(8, '0')).join('.');
+}
+
+function maskFromCIDR(cidr) { return cidr === 0 ? 0 : (0xFFFFFFFF << (32 - cidr)) >>> 0; }
+
+function cidrFromMask(maskInt) {
+  let bits = 0; let found = false;
+  for (let i = 31; i >= 0; i--) {
+    if (maskInt & (1 << i)) { if (found) return -1; bits++; }
+    else { found = true; }
+  }
+  return bits;
+}
+
+function ipClass(firstOctet) {
+  if (firstOctet < 128) return 'A';
+  if (firstOctet < 192) return 'B';
+  if (firstOctet < 224) return 'C';
+  if (firstOctet < 240) return 'D';
+  return 'E';
+}
+
+function isPrivate(ipInt) {
+  const a = (ipInt >>> 24) & 255, b = (ipInt >>> 16) & 255;
+  if (a === 10) return true;
+  if (a === 172 && b >= 16 && b <= 31) return true;
+  if (a === 192 && b === 168) return true;
+  if (a === 127) return true;
+  return false;
+}
+
+function subnetCalc() {
+  const errEl = document.getElementById('subnet-err');
+  const resultsEl = document.getElementById('subnet-results');
+  errEl.textContent = '';
+  resultsEl.style.display = 'none';
+
+  const ipStr = document.getElementById('subnet-ip').value.trim();
+  const cidrStr = document.getElementById('subnet-cidr').value.trim();
+  const maskStr = document.getElementById('subnet-mask-in').value.trim();
+
+  const ipParts = parseIPv4(ipStr);
+  if (!ipParts) { errEl.textContent = 'Invalid IP address'; return; }
+
+  let cidr;
+  if (maskStr) {
+    const maskParts = parseIPv4(maskStr);
+    if (!maskParts) { errEl.textContent = 'Invalid subnet mask'; return; }
+    cidr = cidrFromMask(ipToInt(maskParts));
+    if (cidr < 0) { errEl.textContent = 'Invalid subnet mask (not contiguous)'; return; }
+    document.getElementById('subnet-cidr').value = cidr;
+  } else {
+    cidr = parseInt(cidrStr, 10);
+    if (isNaN(cidr) || cidr < 0 || cidr > 32) { errEl.textContent = 'CIDR must be 0–32'; return; }
+  }
+
+  const ipInt = ipToInt(ipParts);
+  const maskInt = maskFromCIDR(cidr);
+  const wildcardInt = (~maskInt) >>> 0;
+  const networkInt = (ipInt & maskInt) >>> 0;
+  const broadcastInt = (networkInt | wildcardInt) >>> 0;
+  const totalHosts = Math.pow(2, 32 - cidr);
+  const usableHosts = cidr >= 31 ? totalHosts : totalHosts - 2;
+  const firstHost = cidr >= 31 ? networkInt : (networkInt + 1) >>> 0;
+  const lastHost = cidr >= 31 ? broadcastInt : (broadcastInt - 1) >>> 0;
+  const cls = ipClass(ipParts[0]);
+  const priv = isPrivate(ipInt);
+
+  const grid = document.getElementById('subnet-grid');
+  const rows = [
+    ['Network Address', intToIP(networkInt) + '/' + cidr],
+    ['Subnet Mask', intToIP(maskInt)],
+    ['Wildcard Mask', intToIP(wildcardInt)],
+    ['Broadcast Address', intToIP(broadcastInt)],
+    ['First Usable Host', intToIP(firstHost)],
+    ['Last Usable Host', intToIP(lastHost)],
+    ['Total Hosts', totalHosts.toLocaleString()],
+    ['Usable Hosts', usableHosts.toLocaleString()],
+    ['IP Class', 'Class ' + cls],
+    ['IP Type', priv ? 'Private (RFC 1918)' : 'Public'],
+  ];
+  grid.innerHTML = rows.map(([label, value]) =>
+    '<div class="subnet-result-item"><span class="subnet-result-label">' + label + '</span><span class="subnet-result-value">' + value + '</span></div>'
+  ).join('');
+
+  // Binary breakdown
+  const binSection = document.getElementById('subnet-binary-section');
+  const binEl = document.getElementById('subnet-binary');
+  const ipBin = intToBin(ipInt);
+  const maskBin = intToBin(maskInt);
+  const netBin = intToBin(networkInt);
+
+  // Color network vs host bits
+  const allBits = ipBin.replace(/\./g, '');
+  const netPart = '<span class="subnet-bin-net">' + allBits.slice(0, cidr) + '</span>';
+  const hostPart = '<span class="subnet-bin-host">' + allBits.slice(cidr) + '</span>';
+  // Re-insert dots
+  function dotify(bits) {
+    return bits.match(/.{8}/g).join('.');
+  }
+
+  binEl.innerHTML = [
+    ['IP Address', ipBin],
+    ['Subnet Mask', maskBin],
+    ['Network', intToBin(networkInt)],
+  ].map(([label, val]) =>
+    '<div class="subnet-bin-row"><span class="subnet-bin-label">' + label + '</span><span class="subnet-bin-value">' + val + '</span></div>'
+  ).join('') +
+  '<div class="subnet-bin-row"><span class="subnet-bin-label">Bits</span><span class="subnet-bin-value">' +
+  '<span class="subnet-bin-net">' + dotify(allBits.slice(0, cidr).padEnd(32, '\u2007').slice(0, 32)) + '</span>' +
+  ' ← ' + cidr + ' network / ' + (32 - cidr) + ' host</span></div>';
+  binSection.style.display = '';
+
+  // Subnet table (only if reasonable number, <= 256 subnets)
+  const allSection = document.getElementById('subnet-all-section');
+  const tbody = document.getElementById('subnet-table-body');
+  if (totalHosts <= 1 || cidr < 16) {
+    allSection.style.display = 'none';
+  } else {
+    // Find the classful boundary to list sibling subnets
+    let parentCidr;
+    if (ipParts[0] < 128) parentCidr = 8;
+    else if (ipParts[0] < 192) parentCidr = 16;
+    else parentCidr = 24;
+    if (cidr <= parentCidr) { allSection.style.display = 'none'; }
+    else {
+      const parentMask = maskFromCIDR(parentCidr);
+      const parentNet = (ipInt & parentMask) >>> 0;
+      const subnetCount = Math.pow(2, cidr - parentCidr);
+      if (subnetCount > 256) { allSection.style.display = 'none'; }
+      else {
+        const subnetSize = Math.pow(2, 32 - cidr);
+        let html = '';
+        for (let i = 0; i < subnetCount; i++) {
+          const sNet = (parentNet + i * subnetSize) >>> 0;
+          const sBcast = (sNet + subnetSize - 1) >>> 0;
+          const sFirst = cidr >= 31 ? sNet : (sNet + 1) >>> 0;
+          const sLast = cidr >= 31 ? sBcast : (sBcast - 1) >>> 0;
+          const isCurrent = sNet === networkInt;
+          html += '<tr' + (isCurrent ? ' class="subnet-current"' : '') + '><td>' +
+            intToIP(sNet) + '/' + cidr + '</td><td>' +
+            intToIP(sFirst) + ' – ' + intToIP(sLast) + '</td><td>' +
+            intToIP(sBcast) + '</td></tr>';
+        }
+        tbody.innerHTML = html;
+        allSection.style.display = '';
+      }
+    }
+  }
+
+  resultsEl.style.display = '';
+}
+
+function subnetClear() {
+  document.getElementById('subnet-ip').value = '';
+  document.getElementById('subnet-cidr').value = '24';
+  document.getElementById('subnet-mask-in').value = '';
+  document.getElementById('subnet-err').textContent = '';
+  document.getElementById('subnet-results').style.display = 'none';
+}
+
+// Auto-calculate on Enter
+document.getElementById('subnet-ip').addEventListener('keydown', e => { if (e.key === 'Enter') subnetCalc(); });
+document.getElementById('subnet-cidr').addEventListener('keydown', e => { if (e.key === 'Enter') subnetCalc(); });
+document.getElementById('subnet-mask-in').addEventListener('keydown', e => { if (e.key === 'Enter') subnetCalc(); });
+
+// Sync CIDR ↔ mask
+document.getElementById('subnet-mask-in').addEventListener('input', function() {
+  const parts = parseIPv4(this.value);
+  if (parts) {
+    const c = cidrFromMask(ipToInt(parts));
+    if (c >= 0) document.getElementById('subnet-cidr').value = c;
+  }
+});
+document.getElementById('subnet-cidr').addEventListener('input', function() {
+  const c = parseInt(this.value, 10);
+  if (!isNaN(c) && c >= 0 && c <= 32) {
+    document.getElementById('subnet-mask-in').value = intToIP(maskFromCIDR(c));
+  }
+});
+

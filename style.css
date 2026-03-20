@@ -723,6 +723,62 @@ input[type="range"] { flex: 1; accent-color: var(--accent); cursor: pointer; }
 [data-theme="light"] .ks-badge-key { background: #fff3cd; color: #856404; border-color: #ffe69c; }
 .ks-no-cert { font-size: 0.8rem; color: var(--muted); font-style: italic; padding: 8px 0; }
 
+/* ── IP / Subnet Calculator ── */
+.subnet-input-row { display: flex; gap: 14px; margin-bottom: 16px; flex-wrap: wrap; }
+.subnet-field { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 140px; }
+.subnet-field-sm { flex: 0 0 120px; min-width: 100px; }
+.subnet-label { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.subnet-cidr-row { display: flex; align-items: center; gap: 0; }
+.subnet-slash { font-family: var(--mono); font-size: 1.1rem; font-weight: 700; color: var(--accent); padding-right: 4px; }
+.subnet-cidr-row .text-input { width: 100%; }
+
+.subnet-results-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 16px;
+}
+.subnet-result-item {
+  display: flex; align-items: center; gap: 12px; padding: 10px 14px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+}
+.subnet-result-label {
+  font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--muted); width: 130px; flex-shrink: 0;
+}
+.subnet-result-value {
+  font-family: var(--mono); font-size: 0.82rem; color: var(--text); flex: 1; word-break: break-all;
+}
+
+.subnet-section { margin-top: 20px; }
+.subnet-section-title {
+  font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--muted); margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px solid var(--border);
+}
+
+.subnet-binary {
+  display: flex; flex-direction: column; gap: 6px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px;
+}
+.subnet-bin-row { display: flex; align-items: center; gap: 12px; font-size: 0.82rem; }
+.subnet-bin-label { font-size: 0.72rem; font-weight: 700; color: var(--muted); width: 110px; flex-shrink: 0; text-transform: uppercase; letter-spacing: 0.04em; }
+.subnet-bin-value { font-family: var(--mono); font-size: 0.78rem; color: var(--text); letter-spacing: 0.5px; }
+.subnet-bin-net { color: var(--accent); }
+.subnet-bin-host { color: var(--success); }
+
+.subnet-table-wrap { max-height: 300px; overflow-y: auto; border: 1px solid var(--border); border-radius: var(--radius); }
+.subnet-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+.subnet-table th {
+  background: var(--surface2); padding: 8px 12px; text-align: left; font-size: 0.72rem;
+  font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted);
+  position: sticky; top: 0; z-index: 1;
+}
+.subnet-table td { padding: 6px 12px; border-top: 1px solid var(--border); font-family: var(--mono); font-size: 0.78rem; color: var(--text); }
+.subnet-table tr.subnet-current { background: rgba(255,115,0,0.08); }
+
+@media (max-width: 760px) {
+  .subnet-results-grid { grid-template-columns: 1fr; }
+  .subnet-input-row { flex-direction: column; }
+  .subnet-field-sm { flex: 1; }
+}
+
 footer {
   background: var(--surface);
   border-top: 1px solid var(--border);
