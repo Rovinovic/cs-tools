@@ -72,6 +72,7 @@
         <button data-tab="timestamp">Timestamp</button>
         <button data-tab="httpstatus">HTTP Status</button>
         <button data-tab="cors">CORS Builder</button>
+        <button data-tab="timezones">Time Converter</button>
       </div>
     </div>
   </nav>
@@ -676,6 +677,43 @@
         <button class="btn btn-danger" onclick="clearPem()">Clear</button>
       </div>
       <div id="pem-results" style="display:none;margin-top:16px;flex-direction:column;gap:8px;"></div>
+    </div>
+
+    <!-- ═══ Time Converter ═══ -->
+    <div class="tab-panel" id="tab-timezones">
+      <div class="panel-title">
+        <span class="icon">🌍</span> Time Zone Converter
+      </div>
+
+      <!-- Hero clocks: IST & BRT -->
+      <div class="tz-hero">
+        <div class="tz-hero-card">
+          <div class="tz-hero-label">IST — India Standard Time</div>
+          <div class="tz-hero-time" id="tz-hero-ist">--:--:--</div>
+          <div class="tz-hero-date" id="tz-hero-ist-date"></div>
+          <div class="tz-hero-offset">UTC +05:30</div>
+        </div>
+        <div class="tz-hero-card">
+          <div class="tz-hero-label">BRT — Brasília Time</div>
+          <div class="tz-hero-time" id="tz-hero-brt">--:--:--</div>
+          <div class="tz-hero-date" id="tz-hero-brt-date"></div>
+          <div class="tz-hero-offset">UTC −03:00</div>
+        </div>
+      </div>
+
+      <!-- Date picker row -->
+      <div class="tz-toolbar">
+        <input id="tz-date" type="date" class="text-input" />
+        <button class="btn btn-secondary" onclick="tzSetToday()">Today</button>
+        <span class="spacer"></span>
+        <div class="tz-add-wrap">
+          <input id="tz-search" type="text" class="text-input" placeholder="Add timezone…" autocomplete="off" />
+          <div id="tz-suggestions" class="tz-suggestions"></div>
+        </div>
+      </div>
+
+      <!-- Timeline grid -->
+      <div id="tz-grid" class="tz-grid"></div>
     </div>
 
   </div><!-- .content -->

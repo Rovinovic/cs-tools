@@ -1947,3 +1947,490 @@ document.getElementById('regex-test').addEventListener('input', regexTest);
 document.getElementById('pem-in').addEventListener('input', pemDecode);
 // Init HTTP table on load
 renderHttpTable('');
+
+/* ── Time Zone Converter (WorldTimeBuddy-style) ── */
+
+// World capitals timezone catalogue
+const TZ_CATALOG = [
+  { name: 'Kabul', country: 'Afghanistan', abbr: 'AFT', offset: 4.5 },
+  { name: 'Tirana', country: 'Albania', abbr: 'CET', offset: 1 },
+  { name: 'Algiers', country: 'Algeria', abbr: 'CET', offset: 1 },
+  { name: 'Andorra la Vella', country: 'Andorra', abbr: 'CET', offset: 1 },
+  { name: 'Luanda', country: 'Angola', abbr: 'WAT', offset: 1 },
+  { name: "St. John's", country: 'Antigua and Barbuda', abbr: 'AST', offset: -4 },
+  { name: 'Buenos Aires', country: 'Argentina', abbr: 'ART', offset: -3 },
+  { name: 'Yerevan', country: 'Armenia', abbr: 'AMT', offset: 4 },
+  { name: 'Canberra', country: 'Australia', abbr: 'AEST', offset: 10 },
+  { name: 'Vienna', country: 'Austria', abbr: 'CET', offset: 1 },
+  { name: 'Baku', country: 'Azerbaijan', abbr: 'AZT', offset: 4 },
+  { name: 'Nassau', country: 'Bahamas', abbr: 'EST', offset: -5 },
+  { name: 'Manama', country: 'Bahrain', abbr: 'AST', offset: 3 },
+  { name: 'Dhaka', country: 'Bangladesh', abbr: 'BST', offset: 6 },
+  { name: 'Bridgetown', country: 'Barbados', abbr: 'AST', offset: -4 },
+  { name: 'Minsk', country: 'Belarus', abbr: 'MSK', offset: 3 },
+  { name: 'Brussels', country: 'Belgium', abbr: 'CET', offset: 1 },
+  { name: 'Belmopan', country: 'Belize', abbr: 'CST', offset: -6 },
+  { name: 'Porto-Novo', country: 'Benin', abbr: 'WAT', offset: 1 },
+  { name: 'Thimphu', country: 'Bhutan', abbr: 'BTT', offset: 6 },
+  { name: 'Sucre', country: 'Bolivia', abbr: 'BOT', offset: -4 },
+  { name: 'Sarajevo', country: 'Bosnia and Herzegovina', abbr: 'CET', offset: 1 },
+  { name: 'Gaborone', country: 'Botswana', abbr: 'CAT', offset: 2 },
+  { name: 'Brasília', country: 'Brazil', abbr: 'BRT', offset: -3 },
+  { name: 'Bandar Seri Begawan', country: 'Brunei', abbr: 'BNT', offset: 8 },
+  { name: 'Sofia', country: 'Bulgaria', abbr: 'EET', offset: 2 },
+  { name: 'Ouagadougou', country: 'Burkina Faso', abbr: 'GMT', offset: 0 },
+  { name: 'Gitega', country: 'Burundi', abbr: 'CAT', offset: 2 },
+  { name: 'Praia', country: 'Cabo Verde', abbr: 'CVT', offset: -1 },
+  { name: 'Phnom Penh', country: 'Cambodia', abbr: 'ICT', offset: 7 },
+  { name: 'Yaoundé', country: 'Cameroon', abbr: 'WAT', offset: 1 },
+  { name: 'Ottawa', country: 'Canada', abbr: 'EST', offset: -5 },
+  { name: 'Bangui', country: 'Central African Republic', abbr: 'WAT', offset: 1 },
+  { name: "N'Djamena", country: 'Chad', abbr: 'WAT', offset: 1 },
+  { name: 'Santiago', country: 'Chile', abbr: 'CLT', offset: -4 },
+  { name: 'Beijing', country: 'China', abbr: 'CST', offset: 8 },
+  { name: 'Bogotá', country: 'Colombia', abbr: 'COT', offset: -5 },
+  { name: 'Moroni', country: 'Comoros', abbr: 'EAT', offset: 3 },
+  { name: 'Brazzaville', country: 'Congo (Republic)', abbr: 'WAT', offset: 1 },
+  { name: 'Kinshasa', country: 'Congo (Democratic Republic)', abbr: 'WAT', offset: 1 },
+  { name: 'San José', country: 'Costa Rica', abbr: 'CST', offset: -6 },
+  { name: 'Zagreb', country: 'Croatia', abbr: 'CET', offset: 1 },
+  { name: 'Havana', country: 'Cuba', abbr: 'CST', offset: -5 },
+  { name: 'Nicosia', country: 'Cyprus', abbr: 'EET', offset: 2 },
+  { name: 'Prague', country: 'Czechia', abbr: 'CET', offset: 1 },
+  { name: 'Yamoussoukro', country: "Côte d'Ivoire", abbr: 'GMT', offset: 0 },
+  { name: 'Copenhagen', country: 'Denmark', abbr: 'CET', offset: 1 },
+  { name: 'Djibouti', country: 'Djibouti', abbr: 'EAT', offset: 3 },
+  { name: 'Roseau', country: 'Dominica', abbr: 'AST', offset: -4 },
+  { name: 'Santo Domingo', country: 'Dominican Republic', abbr: 'AST', offset: -4 },
+  { name: 'Quito', country: 'Ecuador', abbr: 'ECT', offset: -5 },
+  { name: 'Cairo', country: 'Egypt', abbr: 'EET', offset: 2 },
+  { name: 'San Salvador', country: 'El Salvador', abbr: 'CST', offset: -6 },
+  { name: 'Malabo', country: 'Equatorial Guinea', abbr: 'WAT', offset: 1 },
+  { name: 'Asmara', country: 'Eritrea', abbr: 'EAT', offset: 3 },
+  { name: 'Tallinn', country: 'Estonia', abbr: 'EET', offset: 2 },
+  { name: 'Mbabane', country: 'Eswatini', abbr: 'SAST', offset: 2 },
+  { name: 'Addis Ababa', country: 'Ethiopia', abbr: 'EAT', offset: 3 },
+  { name: 'Suva', country: 'Fiji', abbr: 'FJT', offset: 12 },
+  { name: 'Helsinki', country: 'Finland', abbr: 'EET', offset: 2 },
+  { name: 'Paris', country: 'France', abbr: 'CET', offset: 1 },
+  { name: 'Libreville', country: 'Gabon', abbr: 'WAT', offset: 1 },
+  { name: 'Banjul', country: 'Gambia', abbr: 'GMT', offset: 0 },
+  { name: 'Tbilisi', country: 'Georgia', abbr: 'GET', offset: 4 },
+  { name: 'Berlin', country: 'Germany', abbr: 'CET', offset: 1 },
+  { name: 'Accra', country: 'Ghana', abbr: 'GMT', offset: 0 },
+  { name: 'Athens', country: 'Greece', abbr: 'EET', offset: 2 },
+  { name: "St. George's", country: 'Grenada', abbr: 'AST', offset: -4 },
+  { name: 'Guatemala City', country: 'Guatemala', abbr: 'CST', offset: -6 },
+  { name: 'Conakry', country: 'Guinea', abbr: 'GMT', offset: 0 },
+  { name: 'Bissau', country: 'Guinea-Bissau', abbr: 'GMT', offset: 0 },
+  { name: 'Georgetown', country: 'Guyana', abbr: 'GYT', offset: -4 },
+  { name: 'Port-au-Prince', country: 'Haiti', abbr: 'EST', offset: -5 },
+  { name: 'Vatican City', country: 'Holy See', abbr: 'CET', offset: 1 },
+  { name: 'Tegucigalpa', country: 'Honduras', abbr: 'CST', offset: -6 },
+  { name: 'Budapest', country: 'Hungary', abbr: 'CET', offset: 1 },
+  { name: 'Reykjavik', country: 'Iceland', abbr: 'GMT', offset: 0 },
+  { name: 'New Delhi', country: 'India', abbr: 'IST', offset: 5.5 },
+  { name: 'Jakarta', country: 'Indonesia', abbr: 'WIB', offset: 7 },
+  { name: 'Tehran', country: 'Iran', abbr: 'IRST', offset: 3.5 },
+  { name: 'Baghdad', country: 'Iraq', abbr: 'AST', offset: 3 },
+  { name: 'Dublin', country: 'Ireland', abbr: 'GMT', offset: 0 },
+  { name: 'Jerusalem', country: 'Israel', abbr: 'IST', offset: 2 },
+  { name: 'Rome', country: 'Italy', abbr: 'CET', offset: 1 },
+  { name: 'Kingston', country: 'Jamaica', abbr: 'EST', offset: -5 },
+  { name: 'Tokyo', country: 'Japan', abbr: 'JST', offset: 9 },
+  { name: 'Amman', country: 'Jordan', abbr: 'EET', offset: 2 },
+  { name: 'Astana', country: 'Kazakhstan', abbr: 'UTC+5', offset: 5 },
+  { name: 'Nairobi', country: 'Kenya', abbr: 'EAT', offset: 3 },
+  { name: 'Tarawa', country: 'Kiribati', abbr: 'GILT', offset: 12 },
+  { name: 'Pyongyang', country: 'Korea (North)', abbr: 'KST', offset: 9 },
+  { name: 'Seoul', country: 'Korea (South)', abbr: 'KST', offset: 9 },
+  { name: 'Kuwait City', country: 'Kuwait', abbr: 'AST', offset: 3 },
+  { name: 'Bishkek', country: 'Kyrgyzstan', abbr: 'KGT', offset: 6 },
+  { name: 'Vientiane', country: 'Laos', abbr: 'ICT', offset: 7 },
+  { name: 'Riga', country: 'Latvia', abbr: 'EET', offset: 2 },
+  { name: 'Beirut', country: 'Lebanon', abbr: 'EET', offset: 2 },
+  { name: 'Maseru', country: 'Lesotho', abbr: 'SAST', offset: 2 },
+  { name: 'Monrovia', country: 'Liberia', abbr: 'GMT', offset: 0 },
+  { name: 'Tripoli', country: 'Libya', abbr: 'EET', offset: 2 },
+  { name: 'Vaduz', country: 'Liechtenstein', abbr: 'CET', offset: 1 },
+  { name: 'Vilnius', country: 'Lithuania', abbr: 'EET', offset: 2 },
+  { name: 'Luxembourg', country: 'Luxembourg', abbr: 'CET', offset: 1 },
+  { name: 'Antananarivo', country: 'Madagascar', abbr: 'EAT', offset: 3 },
+  { name: 'Lilongwe', country: 'Malawi', abbr: 'CAT', offset: 2 },
+  { name: 'Kuala Lumpur', country: 'Malaysia', abbr: 'MYT', offset: 8 },
+  { name: 'Malé', country: 'Maldives', abbr: 'MVT', offset: 5 },
+  { name: 'Bamako', country: 'Mali', abbr: 'GMT', offset: 0 },
+  { name: 'Valletta', country: 'Malta', abbr: 'CET', offset: 1 },
+  { name: 'Majuro', country: 'Marshall Islands', abbr: 'MHT', offset: 12 },
+  { name: 'Nouakchott', country: 'Mauritania', abbr: 'GMT', offset: 0 },
+  { name: 'Port Louis', country: 'Mauritius', abbr: 'MUT', offset: 4 },
+  { name: 'Mexico City', country: 'Mexico', abbr: 'CST', offset: -6 },
+  { name: 'Palikir', country: 'Micronesia', abbr: 'PONT', offset: 11 },
+  { name: 'Chișinău', country: 'Moldova', abbr: 'EET', offset: 2 },
+  { name: 'Monaco', country: 'Monaco', abbr: 'CET', offset: 1 },
+  { name: 'Ulaanbaatar', country: 'Mongolia', abbr: 'ULAT', offset: 8 },
+  { name: 'Podgorica', country: 'Montenegro', abbr: 'CET', offset: 1 },
+  { name: 'Rabat', country: 'Morocco', abbr: 'UTC+1', offset: 1 },
+  { name: 'Maputo', country: 'Mozambique', abbr: 'CAT', offset: 2 },
+  { name: 'Naypyidaw', country: 'Myanmar', abbr: 'MMT', offset: 6.5 },
+  { name: 'Windhoek', country: 'Namibia', abbr: 'CAT', offset: 2 },
+  { name: 'Yaren', country: 'Nauru', abbr: 'NRT', offset: 12 },
+  { name: 'Kathmandu', country: 'Nepal', abbr: 'NPT', offset: 5.75 },
+  { name: 'Amsterdam', country: 'Netherlands', abbr: 'CET', offset: 1 },
+  { name: 'Wellington', country: 'New Zealand', abbr: 'NZST', offset: 12 },
+  { name: 'Managua', country: 'Nicaragua', abbr: 'CST', offset: -6 },
+  { name: 'Niamey', country: 'Niger', abbr: 'WAT', offset: 1 },
+  { name: 'Abuja', country: 'Nigeria', abbr: 'WAT', offset: 1 },
+  { name: 'Skopje', country: 'North Macedonia', abbr: 'CET', offset: 1 },
+  { name: 'Oslo', country: 'Norway', abbr: 'CET', offset: 1 },
+  { name: 'Muscat', country: 'Oman', abbr: 'GST', offset: 4 },
+  { name: 'Islamabad', country: 'Pakistan', abbr: 'PKT', offset: 5 },
+  { name: 'Ngerulmud', country: 'Palau', abbr: 'PWT', offset: 9 },
+  { name: 'Ramallah', country: 'Palestine', abbr: 'EET', offset: 2 },
+  { name: 'Panama City', country: 'Panama', abbr: 'EST', offset: -5 },
+  { name: 'Port Moresby', country: 'Papua New Guinea', abbr: 'PGT', offset: 10 },
+  { name: 'Asunción', country: 'Paraguay', abbr: 'PYT', offset: -4 },
+  { name: 'Lima', country: 'Peru', abbr: 'PET', offset: -5 },
+  { name: 'Manila', country: 'Philippines', abbr: 'PHT', offset: 8 },
+  { name: 'Warsaw', country: 'Poland', abbr: 'CET', offset: 1 },
+  { name: 'Lisbon', country: 'Portugal', abbr: 'WET', offset: 0 },
+  { name: 'Doha', country: 'Qatar', abbr: 'AST', offset: 3 },
+  { name: 'Bucharest', country: 'Romania', abbr: 'EET', offset: 2 },
+  { name: 'Moscow', country: 'Russia', abbr: 'MSK', offset: 3 },
+  { name: 'Kigali', country: 'Rwanda', abbr: 'CAT', offset: 2 },
+  { name: 'Basseterre', country: 'Saint Kitts and Nevis', abbr: 'AST', offset: -4 },
+  { name: 'Castries', country: 'Saint Lucia', abbr: 'AST', offset: -4 },
+  { name: 'Kingstown', country: 'Saint Vincent and the Grenadines', abbr: 'AST', offset: -4 },
+  { name: 'Apia', country: 'Samoa', abbr: 'WST', offset: 13 },
+  { name: 'San Marino', country: 'San Marino', abbr: 'CET', offset: 1 },
+  { name: 'São Tomé', country: 'São Tomé and Príncipe', abbr: 'GMT', offset: 0 },
+  { name: 'Riyadh', country: 'Saudi Arabia', abbr: 'AST', offset: 3 },
+  { name: 'Dakar', country: 'Senegal', abbr: 'GMT', offset: 0 },
+  { name: 'Belgrade', country: 'Serbia', abbr: 'CET', offset: 1 },
+  { name: 'Victoria', country: 'Seychelles', abbr: 'SCT', offset: 4 },
+  { name: 'Freetown', country: 'Sierra Leone', abbr: 'GMT', offset: 0 },
+  { name: 'Singapore', country: 'Singapore', abbr: 'SGT', offset: 8 },
+  { name: 'Bratislava', country: 'Slovakia', abbr: 'CET', offset: 1 },
+  { name: 'Ljubljana', country: 'Slovenia', abbr: 'CET', offset: 1 },
+  { name: 'Honiara', country: 'Solomon Islands', abbr: 'SBT', offset: 11 },
+  { name: 'Mogadishu', country: 'Somalia', abbr: 'EAT', offset: 3 },
+  { name: 'Pretoria', country: 'South Africa', abbr: 'SAST', offset: 2 },
+  { name: 'Juba', country: 'South Sudan', abbr: 'CAT', offset: 2 },
+  { name: 'Madrid', country: 'Spain', abbr: 'CET', offset: 1 },
+  { name: 'Sri Jayawardenepura Kotte', country: 'Sri Lanka', abbr: 'IST', offset: 5.5 },
+  { name: 'Khartoum', country: 'Sudan', abbr: 'CAT', offset: 2 },
+  { name: 'Paramaribo', country: 'Suriname', abbr: 'SRT', offset: -3 },
+  { name: 'Stockholm', country: 'Sweden', abbr: 'CET', offset: 1 },
+  { name: 'Bern', country: 'Switzerland', abbr: 'CET', offset: 1 },
+  { name: 'Damascus', country: 'Syria', abbr: 'EET', offset: 2 },
+  { name: 'Taipei', country: 'Taiwan', abbr: 'CST', offset: 8 },
+  { name: 'Dushanbe', country: 'Tajikistan', abbr: 'TJT', offset: 5 },
+  { name: 'Dodoma', country: 'Tanzania', abbr: 'EAT', offset: 3 },
+  { name: 'Bangkok', country: 'Thailand', abbr: 'ICT', offset: 7 },
+  { name: 'Dili', country: 'Timor-Leste', abbr: 'TLT', offset: 9 },
+  { name: 'Lomé', country: 'Togo', abbr: 'GMT', offset: 0 },
+  { name: "Nuku'alofa", country: 'Tonga', abbr: 'TOT', offset: 13 },
+  { name: 'Port of Spain', country: 'Trinidad and Tobago', abbr: 'AST', offset: -4 },
+  { name: 'Tunis', country: 'Tunisia', abbr: 'CET', offset: 1 },
+  { name: 'Ankara', country: 'Turkey', abbr: 'TRT', offset: 3 },
+  { name: 'Ashgabat', country: 'Turkmenistan', abbr: 'TMT', offset: 5 },
+  { name: 'Funafuti', country: 'Tuvalu', abbr: 'TVT', offset: 12 },
+  { name: 'Kampala', country: 'Uganda', abbr: 'EAT', offset: 3 },
+  { name: 'Kyiv', country: 'Ukraine', abbr: 'EET', offset: 2 },
+  { name: 'Abu Dhabi', country: 'United Arab Emirates', abbr: 'GST', offset: 4 },
+  { name: 'London', country: 'United Kingdom', abbr: 'GMT', offset: 0 },
+  { name: 'Washington, D.C.', country: 'United States', abbr: 'EST', offset: -5 },
+  { name: 'Montevideo', country: 'Uruguay', abbr: 'UYT', offset: -3 },
+  { name: 'Tashkent', country: 'Uzbekistan', abbr: 'UZT', offset: 5 },
+  { name: 'Port Vila', country: 'Vanuatu', abbr: 'VUT', offset: 11 },
+  { name: 'Caracas', country: 'Venezuela', abbr: 'VET', offset: -4 },
+  { name: 'Hanoi', country: 'Vietnam', abbr: 'ICT', offset: 7 },
+  { name: "Sana'a", country: 'Yemen', abbr: 'AST', offset: 3 },
+  { name: 'Lusaka', country: 'Zambia', abbr: 'CAT', offset: 2 },
+  { name: 'Harare', country: 'Zimbabwe', abbr: 'CAT', offset: 2 },
+  // Major named timezones (searchable by common names)
+  { name: 'Pacific Time', country: 'US West Coast', abbr: 'PST', offset: -8 },
+  { name: 'Mountain Time', country: 'US Mountain', abbr: 'MST', offset: -7 },
+  { name: 'Central Time', country: 'US Central', abbr: 'CST', offset: -6 },
+  { name: 'Eastern Time', country: 'US East Coast', abbr: 'EST', offset: -5 },
+  { name: 'Alaska Time', country: 'US Alaska', abbr: 'AKST', offset: -9 },
+  { name: 'Hawaii Time', country: 'US Hawaii', abbr: 'HST', offset: -10 },
+  { name: 'Atlantic Time', country: 'Caribbean / Atlantic', abbr: 'AST', offset: -4 },
+  { name: 'Newfoundland Time', country: 'Canada', abbr: 'NST', offset: -3.5 },
+  { name: 'Central European Time', country: 'Europe', abbr: 'CET', offset: 1 },
+  { name: 'Eastern European Time', country: 'Europe', abbr: 'EET', offset: 2 },
+  { name: 'Western European Time', country: 'Europe', abbr: 'WET', offset: 0 },
+  { name: 'Greenwich Mean Time', country: 'Global', abbr: 'GMT', offset: 0 },
+  { name: 'Coordinated Universal Time', country: 'Global', abbr: 'UTC', offset: 0 },
+  { name: 'Moscow Time', country: 'Russia', abbr: 'MSK', offset: 3 },
+  { name: 'Gulf Standard Time', country: 'Persian Gulf', abbr: 'GST', offset: 4 },
+  { name: 'India Standard Time', country: 'India', abbr: 'IST', offset: 5.5 },
+  { name: 'Indochina Time', country: 'Southeast Asia', abbr: 'ICT', offset: 7 },
+  { name: 'China Standard Time', country: 'China / Taiwan', abbr: 'CST', offset: 8 },
+  { name: 'Japan Standard Time', country: 'Japan', abbr: 'JST', offset: 9 },
+  { name: 'Korea Standard Time', country: 'South Korea', abbr: 'KST', offset: 9 },
+  { name: 'Australian Eastern Time', country: 'Australia', abbr: 'AEST', offset: 10 },
+  { name: 'Australian Central Time', country: 'Australia', abbr: 'ACST', offset: 9.5 },
+  { name: 'Australian Western Time', country: 'Australia', abbr: 'AWST', offset: 8 },
+  { name: 'New Zealand Time', country: 'New Zealand', abbr: 'NZST', offset: 12 },
+  { name: 'Singapore Time', country: 'Singapore / Malaysia', abbr: 'SGT', offset: 8 },
+  { name: 'Hong Kong Time', country: 'Hong Kong', abbr: 'HKT', offset: 8 },
+  { name: 'South Africa Standard Time', country: 'South Africa', abbr: 'SAST', offset: 2 },
+  { name: 'East Africa Time', country: 'East Africa', abbr: 'EAT', offset: 3 },
+  { name: 'West Africa Time', country: 'West Africa', abbr: 'WAT', offset: 1 },
+  { name: 'Brasília Time', country: 'Brazil', abbr: 'BRT', offset: -3 },
+  { name: 'Argentina Time', country: 'Argentina', abbr: 'ART', offset: -3 },
+];
+
+// Active rows shown in the grid
+let tzRows = [
+  { name: 'New Delhi', country: 'India', abbr: 'IST', offset: 5.5 },
+  { name: 'Brasília', country: 'Brazil', abbr: 'BRT', offset: -3 },
+  { name: 'London', country: 'United Kingdom', abbr: 'GMT', offset: 0 },
+  { name: 'Washington, D.C.', country: 'United States', abbr: 'EST', offset: -5 },
+  { name: 'Tokyo', country: 'Japan', abbr: 'JST', offset: 9 },
+];
+
+let tzSelectedUTCHour = null; // 0-23, which UTC hour is selected
+let tzBaseDate = null; // Date object for the selected date (midnight UTC)
+
+function formatTzTime(date) {
+  const h = String(date.getUTCHours()).padStart(2, '0');
+  const m = String(date.getUTCMinutes()).padStart(2, '0');
+  const s = String(date.getUTCSeconds()).padStart(2, '0');
+  return `${h}:${m}:${s}`;
+}
+
+function formatTzDate(date) {
+  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return `${days[date.getUTCDay()]}, ${date.getUTCDate()} ${months[date.getUTCMonth()]} ${date.getUTCFullYear()}`;
+}
+
+function formatTzDateShort(date) {
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return `${months[date.getUTCMonth()]} ${date.getUTCDate()}`;
+}
+
+function dateInOffset(utcMs, offsetHours) {
+  return new Date(utcMs + offsetHours * 3600000);
+}
+
+// Hero clocks — live
+function updateTzHero() {
+  const now = Date.now();
+  const ist = dateInOffset(now, 5.5);
+  const brt = dateInOffset(now, -3);
+  const heroIst = document.getElementById('tz-hero-ist');
+  if (!heroIst) return;
+  heroIst.textContent = formatTzTime(ist);
+  document.getElementById('tz-hero-ist-date').textContent = formatTzDate(ist);
+  document.getElementById('tz-hero-brt').textContent = formatTzTime(brt);
+  document.getElementById('tz-hero-brt-date').textContent = formatTzDate(brt);
+}
+updateTzHero();
+setInterval(updateTzHero, 1000);
+
+// Format hour for cell display
+function fmtHour(h) {
+  const total = (((h % 24) + 24) % 24);       // e.g. 0.5, 13.75
+  const hr = Math.floor(total);                // whole hour: 0, 13
+  const frac = total - hr;                     // fractional part: 0.5, 0.75
+  const min = Math.round(frac * 60);           // minutes: 30, 45
+  const minStr = min > 0 ? ':' + String(min).padStart(2, '0') : '';
+  const display = hr === 0 ? 12 : hr > 12 ? hr - 12 : hr;
+  const ampm = hr < 12 ? 'AM' : 'PM';
+  return { top: String(display) + minStr, bot: ampm };
+}
+
+// Color class for an hour (local hour in that timezone)
+function hourClass(h) {
+  const hr = ((Math.floor(h) % 24) + 24) % 24;
+  if (hr >= 9 && hr < 18) return 'tz-day';
+  if ((hr >= 7 && hr < 9) || (hr >= 18 && hr < 21)) return 'tz-fringe';
+  return 'tz-night';
+}
+
+// Offset label like "+05:30" or "−03:00"
+function offsetLabel(offset) {
+  const sign = offset >= 0 ? '+' : '−';
+  const abs = Math.abs(offset);
+  const h = Math.floor(abs);
+  const m = Math.round((abs - h) * 60);
+  return `${sign}${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+// ── Render the grid ──
+function tzRenderGrid() {
+  const grid = document.getElementById('tz-grid');
+  if (!grid) return;
+  grid.innerHTML = '';
+
+  if (!tzBaseDate) tzSetToday();
+
+  const baseMidnightUTC = tzBaseDate.getTime(); // midnight UTC of selected date
+
+  tzRows.forEach((tz, rowIdx) => {
+    const row = document.createElement('div');
+    row.className = 'tz-row';
+
+    // Label
+    const label = document.createElement('div');
+    label.className = 'tz-row-label';
+    label.innerHTML = `<div class="tz-row-name">${tz.name}</div>
+      <div class="tz-row-meta">${tz.country ? tz.country + ' · ' : ''}${tz.abbr} · UTC ${offsetLabel(tz.offset)}</div>`;
+    row.appendChild(label);
+
+    // Remove button (don't allow removing if only 1 row)
+    if (tzRows.length > 1) {
+      const rm = document.createElement('button');
+      rm.className = 'tz-row-remove';
+      rm.textContent = '✕';
+      rm.title = 'Remove';
+      rm.onclick = () => { tzRows.splice(rowIdx, 1); tzRenderGrid(); };
+      row.appendChild(rm);
+    }
+
+    // Hour strip
+    const strip = document.createElement('div');
+    strip.className = 'tz-hours';
+
+    for (let utcH = 0; utcH < 24; utcH++) {
+      const localH = utcH + tz.offset;
+      const localHNorm = ((Math.floor(localH) % 24) + 24) % 24;
+      const { top, bot } = fmtHour(localH);
+
+      const cell = document.createElement('div');
+      cell.className = `tz-cell ${hourClass(localH)}`;
+      if (localHNorm === 0) cell.classList.add('tz-midnight');
+      if (utcH === tzSelectedUTCHour) cell.classList.add('tz-selected');
+
+      cell.innerHTML = `<span class="tz-cell-hour">${top}</span><span class="tz-cell-ampm">${bot}</span>`;
+
+      // Click to select this column across all rows
+      cell.addEventListener('click', () => {
+        tzSelectedUTCHour = utcH;
+        tzRenderGrid();
+      });
+
+      // Drag support
+      cell.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        tzSelectedUTCHour = utcH;
+        tzRenderGrid();
+        const onMove = (ev) => {
+          const target = document.elementFromPoint(ev.clientX, ev.clientY);
+          if (target && target.closest('.tz-cell')) {
+            const allCells = [...strip.children];
+            const idx = allCells.indexOf(target.closest('.tz-cell'));
+            if (idx >= 0 && idx !== tzSelectedUTCHour) {
+              tzSelectedUTCHour = idx;
+              tzRenderGrid();
+            }
+          }
+        };
+        const onUp = () => {
+          document.removeEventListener('mousemove', onMove);
+          document.removeEventListener('mouseup', onUp);
+        };
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
+      });
+
+      strip.appendChild(cell);
+    }
+
+    row.appendChild(strip);
+    grid.appendChild(row);
+  });
+
+  // Scroll all strips to show current selected hour or ~9AM range
+  setTimeout(() => {
+    grid.querySelectorAll('.tz-hours').forEach(strip => {
+      const target = strip.querySelector('.tz-selected') || strip.children[9];
+      if (target) target.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
+    });
+  }, 0);
+}
+
+// Set date to today
+function tzSetToday() {
+  const now = new Date();
+  const y = now.getUTCFullYear();
+  const m = String(now.getUTCMonth() + 1).padStart(2, '0');
+  const d = String(now.getUTCDate()).padStart(2, '0');
+  document.getElementById('tz-date').value = `${y}-${m}-${d}`;
+  tzBaseDate = new Date(`${y}-${m}-${d}T00:00:00Z`);
+  // Set selected hour to current UTC hour
+  tzSelectedUTCHour = now.getUTCHours();
+  tzRenderGrid();
+}
+
+// Date input change
+document.getElementById('tz-date').addEventListener('change', function() {
+  tzBaseDate = new Date(this.value + 'T00:00:00Z');
+  tzRenderGrid();
+});
+
+// ── Add timezone search ──
+const tzSearchInput = document.getElementById('tz-search');
+const tzSugBox = document.getElementById('tz-suggestions');
+let tzSugIdx = -1;
+
+tzSearchInput.addEventListener('input', function() {
+  const q = this.value.trim().toLowerCase();
+  tzSugBox.innerHTML = '';
+  tzSugIdx = -1;
+  if (!q) { tzSugBox.classList.remove('open'); return; }
+
+  // Check if query is an offset search like "+5", "-3", "+5.5", "5.5", "utc+5"
+  const offsetMatch = q.replace(/^utc\s*/, '').match(/^([+-]?\d+\.?\d*)$/);
+  const searchOffset = offsetMatch ? parseFloat(offsetMatch[1]) : null;
+
+  const matches = TZ_CATALOG.filter(tz => {
+    const already = tzRows.some(r => r.name === tz.name && r.country === tz.country);
+    if (already) return false;
+
+    // Match by offset number
+    if (searchOffset !== null && tz.offset === searchOffset) return true;
+
+    // Match by name, country, or abbreviation
+    return tz.name.toLowerCase().includes(q)
+      || tz.country.toLowerCase().includes(q)
+      || tz.abbr.toLowerCase().includes(q);
+  }).slice(0, 10);
+
+  if (!matches.length) { tzSugBox.classList.remove('open'); return; }
+
+  matches.forEach((tz, i) => {
+    const item = document.createElement('div');
+    item.className = 'tz-sug-item';
+    item.innerHTML = `<span>${tz.name}, ${tz.country}</span><span class="tz-sug-offset">${tz.abbr} · UTC ${offsetLabel(tz.offset)}</span>`;
+    item.addEventListener('click', () => tzAddRow(tz));
+    tzSugBox.appendChild(item);
+  });
+  tzSugBox.classList.add('open');
+});
+
+tzSearchInput.addEventListener('keydown', function(e) {
+  const items = tzSugBox.querySelectorAll('.tz-sug-item');
+  if (!items.length) return;
+  if (e.key === 'ArrowDown') { e.preventDefault(); tzSugIdx = Math.min(tzSugIdx + 1, items.length - 1); }
+  else if (e.key === 'ArrowUp') { e.preventDefault(); tzSugIdx = Math.max(tzSugIdx - 1, 0); }
+  else if (e.key === 'Enter' && tzSugIdx >= 0) { e.preventDefault(); items[tzSugIdx].click(); return; }
+  else if (e.key === 'Escape') { tzSugBox.classList.remove('open'); return; }
+  else return;
+  items.forEach((it, i) => it.classList.toggle('active', i === tzSugIdx));
+});
+
+tzSearchInput.addEventListener('blur', () => setTimeout(() => tzSugBox.classList.remove('open'), 150));
+
+function tzAddRow(tz) {
+  tzRows.push({ ...tz });
+  tzSearchInput.value = '';
+  tzSugBox.classList.remove('open');
+  tzRenderGrid();
+}
+
+// Init on load
+tzSetToday();

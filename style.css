@@ -564,6 +564,100 @@ input[type="range"] { flex: 1; accent-color: var(--accent); cursor: pointer; }
 .pem-sans { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
 .pem-san-tag { background: var(--surface2); border: 1px solid var(--border); border-radius: 4px; padding: 3px 8px; font-size: 0.75rem; font-family: var(--mono); color: var(--text); }
 
+/* ── Time Converter ── */
+.tz-hero { display: flex; gap: 16px; margin-bottom: 20px; }
+.tz-hero-card {
+  flex: 1; background: var(--surface2); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 20px; text-align: center;
+}
+.tz-hero-label { font-size: 0.78rem; font-weight: 600; color: var(--muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.04em; }
+.tz-hero-time { font-family: var(--mono); font-size: 2.2rem; font-weight: 600; color: var(--accent); line-height: 1.2; }
+.tz-hero-date { font-size: 0.82rem; color: var(--text); margin-top: 4px; }
+.tz-hero-offset { font-size: 0.72rem; color: var(--muted); margin-top: 6px; }
+
+/* Toolbar */
+.tz-toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
+.tz-toolbar .text-input { padding: 7px 10px; font-size: 0.82rem; }
+.tz-add-wrap { position: relative; }
+.tz-add-wrap input { width: 220px; }
+.tz-suggestions {
+  display: none; position: absolute; top: 100%; left: 0; right: 0; z-index: 50;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  max-height: 220px; overflow-y: auto; margin-top: 4px; box-shadow: 0 8px 24px rgba(0,0,0,.35);
+}
+.tz-suggestions.open { display: block; }
+.tz-sug-item {
+  padding: 8px 12px; font-size: 0.8rem; cursor: pointer; display: flex; justify-content: space-between;
+}
+.tz-sug-item:hover, .tz-sug-item.active { background: var(--surface2); }
+.tz-sug-offset { color: var(--muted); font-size: 0.72rem; }
+
+/* Grid (WorldTimeBuddy-style) */
+.tz-grid { display: flex; flex-direction: column; gap: 0; }
+
+.tz-row {
+  display: flex; align-items: stretch; border-bottom: 1px solid var(--border);
+  position: relative;
+}
+.tz-row:first-child { border-top: 1px solid var(--border); border-radius: var(--radius) var(--radius) 0 0; }
+.tz-row:last-child { border-radius: 0 0 var(--radius) var(--radius); }
+
+.tz-row-label {
+  width: 160px; min-width: 160px; padding: 10px 12px;
+  background: var(--surface); border-right: 1px solid var(--border);
+  display: flex; flex-direction: column; justify-content: center; gap: 2px;
+}
+.tz-row-name { font-size: 0.8rem; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tz-row-meta { font-size: 0.68rem; color: var(--muted); }
+.tz-row-remove {
+  position: absolute; top: 4px; left: 140px; z-index: 5;
+  background: none; border: none; color: var(--muted); cursor: pointer; font-size: 0.7rem;
+  opacity: 0; transition: opacity .15s;
+}
+.tz-row:hover .tz-row-remove { opacity: 1; }
+.tz-row-remove:hover { color: var(--danger); }
+
+.tz-hours {
+  display: flex; flex: 1; overflow-x: auto; position: relative;
+  scrollbar-width: thin; scrollbar-color: var(--border) transparent;
+}
+
+.tz-cell {
+  min-width: 42px; flex-shrink: 0; padding: 8px 2px;
+  text-align: center; cursor: pointer; transition: outline .1s;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
+  border-right: 1px solid rgba(255,255,255,.04);
+  user-select: none; position: relative;
+}
+.tz-cell-hour { font-size: 0.7rem; font-weight: 600; }
+.tz-cell-ampm { font-size: 0.58rem; font-weight: 400; opacity: .7; }
+
+/* Hour color bands */
+.tz-cell.tz-day   { background: #1a5c2a; color: #c8f7d5; }
+.tz-cell.tz-fringe { background: #6b5e10; color: #f5eab8; }
+.tz-cell.tz-night  { background: #1a1a2e; color: #6a6a8a; }
+
+[data-theme="light"] .tz-cell.tz-day    { background: #d4edda; color: #155724; }
+[data-theme="light"] .tz-cell.tz-fringe { background: #fff3cd; color: #856404; }
+[data-theme="light"] .tz-cell.tz-night  { background: #d6d8e1; color: #5a5a7a; }
+
+/* Selected column highlight */
+.tz-cell.tz-selected {
+  outline: 2px solid var(--accent); outline-offset: -2px;
+  z-index: 2;
+}
+.tz-cell.tz-selected .tz-cell-hour { font-weight: 700; }
+
+/* Midnight / date-change marker */
+.tz-cell.tz-midnight { border-left: 2px solid var(--accent); }
+
+@media (max-width: 600px) {
+  .tz-hero { flex-direction: column; }
+  .tz-row-label { width: 110px; min-width: 110px; padding: 8px; }
+  .tz-row-name { font-size: 0.72rem; }
+  .tz-cell { min-width: 36px; }
+}
+
 footer {
   background: var(--surface);
   border-top: 1px solid var(--border);
