@@ -59,6 +59,7 @@
         <button data-tab="hash">Hash</button>
         <button data-tab="pwgen">Password</button>
         <button data-tab="uuid">UUID</button>
+        <button data-tab="csr">CSR Generator</button>
       </div>
     </div>
 
@@ -547,6 +548,100 @@
         <button class="btn btn-danger" onclick="clearUuid()">Clear</button>
       </div>
       <div id="uuid-results" style="display:none;margin-top:16px;flex-direction:column;gap:6px;"></div>
+    </div>
+
+    <!-- ═══ CSR Generator ═══ -->
+    <div class="tab-panel" id="tab-csr">
+      <div class="panel-title">
+        <span class="icon">📜</span> CSR Generator
+      </div>
+      <div class="csr-form">
+        <div class="csr-field">
+          <label class="csr-label">Common Name <span class="csr-required">*</span></label>
+          <input id="csr-cn" type="text" class="text-input" placeholder="e.g. www.example.com" />
+        </div>
+        <div class="csr-field">
+          <label class="csr-label">Organization</label>
+          <input id="csr-o" type="text" class="text-input" placeholder="e.g. Acme Inc." />
+        </div>
+        <div class="csr-field">
+          <label class="csr-label">Department</label>
+          <input id="csr-ou" type="text" class="text-input" placeholder="e.g. Engineering" />
+        </div>
+        <div class="csr-pair">
+          <div class="csr-field">
+            <label class="csr-label">City</label>
+            <input id="csr-l" type="text" class="text-input" placeholder="e.g. San Francisco" />
+          </div>
+          <div class="csr-field">
+            <label class="csr-label">State / Province</label>
+            <input id="csr-st" type="text" class="text-input" placeholder="e.g. California" />
+          </div>
+        </div>
+        <div class="csr-pair">
+          <div class="csr-field">
+            <label class="csr-label">Country</label>
+            <input id="csr-c" type="text" class="text-input" placeholder="2-letter code, e.g. US" maxlength="2" style="text-transform:uppercase;" />
+          </div>
+          <div class="csr-field">
+            <label class="csr-label">Email</label>
+            <input id="csr-email" type="email" class="text-input" placeholder="e.g. admin@example.com" />
+          </div>
+        </div>
+        <div class="csr-field">
+          <label class="csr-label">Subject Alternative Names</label>
+          <input id="csr-sans" type="text" class="text-input" placeholder="Comma-separated: *.example.com, api.example.com, 10.0.0.1" />
+          <span class="csr-hint">DNS names and IP addresses, comma-separated</span>
+        </div>
+        <div class="csr-pair">
+          <div class="csr-field">
+            <label class="csr-label">Key Size</label>
+            <select id="csr-algo" class="text-input">
+              <option value="RSA-2048">RSA 2048-bit</option>
+              <option value="RSA-4096">RSA 4096-bit</option>
+              <option value="EC-P256">ECDSA P-256</option>
+              <option value="EC-P384">ECDSA P-384</option>
+            </select>
+          </div>
+          <div class="csr-field">
+            <label class="csr-label">Signature Algorithm</label>
+            <select id="csr-sig" class="text-input">
+              <option value="SHA-256">SHA-256</option>
+              <option value="SHA-384">SHA-384</option>
+              <option value="SHA-512">SHA-512</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="err-msg" id="csr-err"></div>
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="csrGenerate()">⚡ Generate CSR</button>
+        <span class="spacer"></span>
+        <button class="btn btn-danger" onclick="csrClear()">Clear</button>
+      </div>
+      <div id="csr-results" style="display:none;margin-top:16px;flex-direction:column;gap:12px;">
+        <div class="csr-output-box">
+          <div class="csr-output-header">
+            <label>CSR (PEM)</label>
+            <div class="csr-output-actions">
+              <button class="btn btn-secondary" onclick="csrDownload('csr')">Download .csr</button>
+              <button class="btn btn-secondary" onclick="csrCopyCSR()">Copy</button>
+            </div>
+          </div>
+          <textarea id="csr-out" readonly></textarea>
+        </div>
+        <div class="csr-output-box">
+          <div class="csr-output-header">
+            <label>Private Key (PEM)</label>
+            <div class="csr-output-actions">
+              <button class="btn btn-secondary" onclick="csrDownload('key')">Download .key</button>
+              <button class="btn btn-secondary" onclick="csrCopyKey()">Copy</button>
+            </div>
+          </div>
+          <textarea id="csr-key-out" readonly></textarea>
+        </div>
+        <div class="csr-warning">Your private key is generated entirely in your browser and never transmitted anywhere. Keep it secure.</div>
+      </div>
     </div>
 
     <!-- ═══ Base64 URL Encode ═══ -->

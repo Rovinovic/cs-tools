@@ -658,6 +658,47 @@ input[type="range"] { flex: 1; accent-color: var(--accent); cursor: pointer; }
   .tz-cell { min-width: 36px; }
 }
 
+/* ── CSR Generator ── */
+.csr-form {
+  display: flex; flex-direction: column; gap: 14px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 20px; margin-bottom: 14px;
+}
+.csr-pair { display: flex; gap: 14px; }
+.csr-pair .csr-field { flex: 1; }
+.csr-field { display: flex; flex-direction: column; gap: 4px; }
+.csr-label { font-size: 0.8rem; font-weight: 600; color: var(--text); }
+.csr-required { color: var(--danger); font-weight: 700; }
+.csr-hint { font-size: 0.72rem; color: var(--muted); }
+.csr-form .text-input {
+  padding: 9px 12px; font-size: 0.85rem;
+  background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius);
+  color: var(--text);
+}
+.csr-form .text-input:focus { border-color: var(--accent); outline: none; }
+.csr-form select.text-input { cursor: pointer; }
+
+.csr-output-box {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 14px; display: flex; flex-direction: column; gap: 8px;
+}
+.csr-output-header { display: flex; justify-content: space-between; align-items: center; }
+.csr-output-header label { font-size: 0.82rem; font-weight: 600; color: var(--text); }
+.csr-output-actions { display: flex; gap: 6px; }
+.csr-output-actions .btn { padding: 4px 12px; font-size: 0.72rem; }
+.csr-output-box textarea {
+  height: 150px; font-family: var(--mono); font-size: 0.76rem; resize: vertical;
+  background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius);
+  color: var(--text); padding: 10px;
+}
+
+.csr-warning {
+  font-size: 0.78rem; color: var(--warning); background: rgba(245,158,11,.08);
+  border: 1px solid rgba(245,158,11,.2); border-radius: var(--radius);
+  padding: 10px 14px; line-height: 1.5;
+}
+@media (max-width: 600px) { .csr-pair { flex-direction: column; } }
+
 /* ── Keystore Viewer ── */
 .ks-upload-area { display: flex; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
 .ks-upload-area .io-box { flex: 1; min-width: 200px; }

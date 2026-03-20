@@ -1910,6 +1910,332 @@ function clearPem() {
   r.style.display = 'none'; r.innerHTML = '';
 }
 
+/* ── CSR Generator ── */
+const CSR = (() => {
+  // ASN.1 DER encoding helpers
+  function encodeLength(len) {
+    if (len < 0x80) return [len];
+    if (len < 0x100) return [0x81, len];
+    return [0x82, (len >> 8) & 0xff, len & 0xff];
+  }
+
+  function encodeTLV(tag, value) {
+    const v = value instanceof Uint8Array ? Array.from(value) : value;
+    return [tag, ...encodeLength(v.length), ...v];
+  }
+
+  function encodeSequence(children) {
+    const body = children.flat();
+    return encodeTLV(0x30, body);
+  }
+
+  function encodeSet(children) {
+    const body = children.flat();
+    return encodeTLV(0x31, body);
+  }
+
+  function encodeOID(oid) {
+    const parts = oid.split('.').map(Number);
+    const bytes = [parts[0] * 40 + parts[1]];
+    for (let i = 2; i < parts.length; i++) {
+      let val = parts[i];
+      if (val < 128) { bytes.push(val); }
+      else {
+        const chunks = [];
+        while (val > 0) { chunks.unshift(val & 0x7f); val >>= 7; }
+        for (let j = 0; j < chunks.length - 1; j++) chunks[j] |= 0x80;
+        bytes.push(...chunks);
+      }
+    }
+    return encodeTLV(0x06, bytes);
+  }
+
+  function encodeUTF8String(str) {
+    const bytes = new TextEncoder().encode(str);
+    return encodeTLV(0x0c, Array.from(bytes));
+  }
+
+  function encodePrintableString(str) {
+    const bytes = [];
+    for (let i = 0; i < str.length; i++) bytes.push(str.charCodeAt(i));
+    return encodeTLV(0x13, bytes);
+  }
+
+  function encodeIA5String(str) {
+    const bytes = [];
+    for (let i = 0; i < str.length; i++) bytes.push(str.charCodeAt(i));
+    return encodeTLV(0x16, bytes);
+  }
+
+  function encodeBitString(bytes) {
+    // Prepend 0 unused bits
+    return encodeTLV(0x03, [0, ...Array.from(bytes)]);
+  }
+
+  function encodeInteger(bytes) {
+    const arr = Array.from(bytes);
+    // Ensure positive (add leading 0 if high bit set)
+    if (arr[0] & 0x80) arr.unshift(0);
+    return encodeTLV(0x02, arr);
+  }
+
+  // OIDs for subject fields
+  const OIDs = {
+    CN: '2.5.4.3', O: '2.5.4.10', OU: '2.5.4.11',
+    L: '2.5.4.7', ST: '2.5.4.8', C: '2.5.4.6',
+    email: '1.2.840.113549.1.9.1',
+  };
+
+  const SIG_OIDS = {
+    'RSA-SHA-256': '1.2.840.113549.1.1.11',
+    'RSA-SHA-384': '1.2.840.113549.1.1.12',
+    'RSA-SHA-512': '1.2.840.113549.1.1.13',
+    'EC-SHA-256': '1.2.840.10045.4.3.2',
+    'EC-SHA-384': '1.2.840.10045.4.3.3',
+    'EC-SHA-512': '1.2.840.10045.4.3.4',
+  };
+
+  function buildSubject(fields) {
+    const rdns = [];
+    const order = ['CN', 'O', 'OU', 'L', 'ST', 'C', 'email'];
+    for (const key of order) {
+      const val = fields[key];
+      if (!val) continue;
+      const oid = encodeOID(OIDs[key]);
+      let valEnc;
+      if (key === 'C') valEnc = encodePrintableString(val.toUpperCase());
+      else if (key === 'email') valEnc = encodeIA5String(val);
+      else valEnc = encodeUTF8String(val);
+      rdns.push(encodeSet([encodeSequence([oid, valEnc])]));
+    }
+    return encodeSequence(rdns);
+  }
+
+  function buildSANExtension(sans) {
+    if (!sans.length) return null;
+    const generalNames = [];
+    for (const san of sans) {
+      const trimmed = san.trim();
+      if (!trimmed) continue;
+      // Detect IP vs DNS
+      const isIP = /^\d{1,3}(\.\d{1,3}){3}$/.test(trimmed);
+      if (isIP) {
+        const octets = trimmed.split('.').map(Number);
+        generalNames.push(encodeTLV(0x87, octets)); // [7] iPAddress
+      } else {
+        const bytes = new TextEncoder().encode(trimmed);
+        generalNames.push(encodeTLV(0x82, Array.from(bytes))); // [2] dNSName
+      }
+    }
+    if (!generalNames.length) return null;
+    const sanSeq = encodeSequence(generalNames);
+    const extReqValue = encodeSequence([
+      encodeSequence([
+        encodeOID('2.5.29.17'), // SAN OID
+        encodeTLV(0x04, sanSeq), // OCTET STRING wrapping
+      ])
+    ]);
+    // Wrap as [0] EXPLICIT for extensionRequest attribute
+    return encodeSequence([
+      encodeOID('1.2.840.113549.1.9.14'), // extensionRequest OID
+      encodeSet([extReqValue]),
+    ]);
+  }
+
+  async function generate(options) {
+    const { cn, o, ou, l, st, c, email, sans, algo, sigHash } = options;
+    if (!cn) throw new Error('Common Name (CN) is required.');
+
+    const isEC = algo.startsWith('EC');
+    let keyPair, spkiBytes;
+
+    if (isEC) {
+      const curve = algo === 'EC-P256' ? 'P-256' : 'P-384';
+      keyPair = await crypto.subtle.generateKey(
+        { name: 'ECDSA', namedCurve: curve },
+        true, ['sign', 'verify']
+      );
+    } else {
+      const bits = algo === 'RSA-2048' ? 2048 : 4096;
+      keyPair = await crypto.subtle.generateKey(
+        { name: 'RSASSA-PKCS1-v1_5', modulusLength: bits, publicExponent: new Uint8Array([1, 0, 1]), hash: sigHash },
+        true, ['sign', 'verify']
+      );
+    }
+
+    // Export SPKI (public key)
+    const spkiRaw = await crypto.subtle.exportKey('spki', keyPair.publicKey);
+    spkiBytes = new Uint8Array(spkiRaw);
+
+    // Export PKCS#8 (private key)
+    const pkcs8Raw = await crypto.subtle.exportKey('pkcs8', keyPair.privateKey);
+    const pkcs8Bytes = new Uint8Array(pkcs8Raw);
+
+    // Build subject
+    const subject = buildSubject({ CN: cn, O: o, OU: ou, L: l, ST: st, C: c, email });
+
+    // Build CertificationRequestInfo
+    const version = encodeTLV(0x02, [0]); // version 0
+
+    // Attributes (SANs if any)
+    const sanExt = buildSANExtension(sans);
+    let attributes;
+    if (sanExt) {
+      // [0] IMPLICIT SET OF Attribute
+      const attrBody = sanExt;
+      attributes = encodeTLV(0xa0, attrBody);
+    } else {
+      attributes = encodeTLV(0xa0, []); // empty attributes
+    }
+
+    const certReqInfo = encodeSequence([
+      version,
+      subject,
+      Array.from(spkiBytes),
+      attributes,
+    ]);
+
+    // Sign the certReqInfo
+    const certReqInfoBytes = new Uint8Array(certReqInfo);
+    let signature;
+    if (isEC) {
+      const sigRaw = await crypto.subtle.sign(
+        { name: 'ECDSA', hash: sigHash },
+        keyPair.privateKey, certReqInfoBytes
+      );
+      // Convert from WebCrypto IEEE P1363 format to ASN.1 DER format
+      signature = ieeeToAsn1Sig(new Uint8Array(sigRaw));
+    } else {
+      const sigRaw = await crypto.subtle.sign(
+        'RSASSA-PKCS1-v1_5',
+        keyPair.privateKey, certReqInfoBytes
+      );
+      signature = new Uint8Array(sigRaw);
+    }
+
+    // Signature algorithm
+    const sigAlgoKey = (isEC ? 'EC' : 'RSA') + '-' + sigHash;
+    const sigOid = SIG_OIDS[sigAlgoKey];
+    let sigAlgoSeq;
+    if (isEC) {
+      sigAlgoSeq = encodeSequence([encodeOID(sigOid)]);
+    } else {
+      sigAlgoSeq = encodeSequence([encodeOID(sigOid), encodeTLV(0x05, [])]); // NULL params
+    }
+
+    // Build final CSR
+    const csr = encodeSequence([
+      Array.from(certReqInfoBytes),
+      sigAlgoSeq,
+      encodeBitString(signature),
+    ]);
+
+    const csrPem = toPEM(new Uint8Array(csr), 'CERTIFICATE REQUEST');
+    const keyPem = toPEM(pkcs8Bytes, 'PRIVATE KEY');
+
+    return { csrPem, keyPem };
+  }
+
+  // Convert ECDSA signature from IEEE P1363 (r||s) to ASN.1 DER
+  function ieeeToAsn1Sig(raw) {
+    const half = raw.length / 2;
+    let r = raw.slice(0, half);
+    let s = raw.slice(half);
+    // Trim leading zeros but keep one if high bit set
+    function trimInt(bytes) {
+      let i = 0;
+      while (i < bytes.length - 1 && bytes[i] === 0) i++;
+      const trimmed = bytes.slice(i);
+      if (trimmed[0] & 0x80) {
+        const padded = new Uint8Array(trimmed.length + 1);
+        padded.set(trimmed, 1);
+        return padded;
+      }
+      return trimmed;
+    }
+    r = trimInt(r);
+    s = trimInt(s);
+    const rEnc = encodeTLV(0x02, Array.from(r));
+    const sEnc = encodeTLV(0x02, Array.from(s));
+    return new Uint8Array(encodeSequence([rEnc, sEnc]));
+  }
+
+  function toPEM(der, label) {
+    const b64 = btoa(String.fromCharCode(...der));
+    const lines = b64.match(/.{1,64}/g) || [];
+    return `-----BEGIN ${label}-----\n${lines.join('\n')}\n-----END ${label}-----`;
+  }
+
+  return { generate };
+})();
+
+function csrAlgoChange() {
+  // Adjust signature options based on key type — all hashes work for both
+}
+
+async function csrGenerate() {
+  setError('csr-err', '');
+  const resultsEl = document.getElementById('csr-results');
+  resultsEl.style.display = 'none';
+
+  const cn = document.getElementById('csr-cn').value.trim();
+  const o = document.getElementById('csr-o').value.trim();
+  const ou = document.getElementById('csr-ou').value.trim();
+  const l = document.getElementById('csr-l').value.trim();
+  const st = document.getElementById('csr-st').value.trim();
+  const c = document.getElementById('csr-c').value.trim();
+  const email = document.getElementById('csr-email').value.trim();
+  const sansRaw = document.getElementById('csr-sans').value.trim();
+  const sans = sansRaw ? sansRaw.split(',').map(s => s.trim()).filter(Boolean) : [];
+  const algo = document.getElementById('csr-algo').value;
+  const sigHash = document.getElementById('csr-sig').value;
+
+  try {
+    const { csrPem, keyPem } = await CSR.generate({ cn, o, ou, l, st, c, email, sans, algo, sigHash });
+    document.getElementById('csr-out').value = csrPem;
+    document.getElementById('csr-key-out').value = keyPem;
+    resultsEl.style.display = 'flex';
+  } catch (e) {
+    setError('csr-err', e.message);
+  }
+}
+
+function csrCopyCSR() {
+  const text = document.getElementById('csr-out').value;
+  if (!text) { showToast('Nothing to copy'); return; }
+  navigator.clipboard.writeText(text).then(() => showToast('CSR copied!'));
+}
+
+function csrCopyKey() {
+  const text = document.getElementById('csr-key-out').value;
+  if (!text) { showToast('Nothing to copy'); return; }
+  navigator.clipboard.writeText(text).then(() => showToast('Private key copied!'));
+}
+
+function csrDownload(type) {
+  const text = type === 'csr' ? document.getElementById('csr-out').value : document.getElementById('csr-key-out').value;
+  if (!text) return;
+  const cn = document.getElementById('csr-cn').value.trim().replace(/[^a-zA-Z0-9.-]/g, '_') || 'certificate';
+  const filename = type === 'csr' ? `${cn}.csr` : `${cn}.key`;
+  const blob = new Blob([text], { type: 'text/plain' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function csrClear() {
+  ['csr-cn', 'csr-o', 'csr-ou', 'csr-l', 'csr-st', 'csr-c', 'csr-email', 'csr-sans'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+  document.getElementById('csr-out').value = '';
+  document.getElementById('csr-key-out').value = '';
+  document.getElementById('csr-results').style.display = 'none';
+  setError('csr-err', '');
+}
+
+
 /* ── Keystore / Truststore Viewer ── */
 const KEYSTORE = (() => {
 
