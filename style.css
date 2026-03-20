@@ -658,6 +658,30 @@ input[type="range"] { flex: 1; accent-color: var(--accent); cursor: pointer; }
   .tz-cell { min-width: 36px; }
 }
 
+/* ── Keystore Viewer ── */
+.ks-upload-area { display: flex; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+.ks-upload-area .io-box { flex: 1; min-width: 200px; }
+.ks-summary {
+  background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 10px 16px; font-size: 0.82rem; color: var(--text); margin-top: 12px;
+}
+.ks-entry {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 16px; overflow: hidden;
+}
+.ks-entry-header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+.ks-alias { font-family: var(--mono); font-size: 0.85rem; font-weight: 600; color: var(--text); }
+.ks-ts { font-size: 0.72rem; color: var(--muted); }
+.ks-badge {
+  font-size: 0.68rem; font-weight: 600; padding: 2px 8px; border-radius: 4px;
+  text-transform: uppercase; letter-spacing: 0.03em;
+}
+.ks-badge-cert { background: #1a3a2a; color: var(--success); border: 1px solid #2a5a3a; }
+.ks-badge-key { background: #3a2a1a; color: var(--warning); border: 1px solid #5a4a2a; }
+[data-theme="light"] .ks-badge-cert { background: #d4edda; color: #155724; border-color: #b8dacc; }
+[data-theme="light"] .ks-badge-key { background: #fff3cd; color: #856404; border-color: #ffe69c; }
+.ks-no-cert { font-size: 0.8rem; color: var(--muted); font-style: italic; padding: 8px 0; }
+
 footer {
   background: var(--surface);
   border-top: 1px solid var(--border);

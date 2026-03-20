@@ -73,6 +73,7 @@
         <button data-tab="httpstatus">HTTP Status</button>
         <button data-tab="cors">CORS Builder</button>
         <button data-tab="timezones">Time Converter</button>
+        <button data-tab="keystore">Keystore Viewer</button>
       </div>
     </div>
   </nav>
@@ -714,6 +715,31 @@
 
       <!-- Timeline grid -->
       <div id="tz-grid" class="tz-grid"></div>
+    </div>
+
+    <!-- ═══ Keystore / Truststore Viewer ═══ -->
+    <div class="tab-panel" id="tab-keystore">
+      <div class="panel-title">
+        <span class="icon">🔐</span> Keystore / Truststore Viewer
+      </div>
+      <div class="ks-upload-area">
+        <div class="io-box" style="margin-bottom:0;">
+          <label>Keystore File (JKS, PKCS#12/PFX, or PEM bundle)</label>
+          <input id="ks-file" type="file" class="text-input" accept=".jks,.p12,.pfx,.pem,.crt,.cer,.keystore,.truststore" />
+        </div>
+        <div class="io-box" style="margin-bottom:0;">
+          <label>Password <span style="font-weight:400;color:var(--muted);">(required for PKCS#12, optional for JKS)</span></label>
+          <input id="ks-pass" type="password" class="text-input" placeholder="Keystore password…" />
+        </div>
+      </div>
+      <div class="err-msg" id="ks-err"></div>
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="keystoreDecode()">⚡ Decode</button>
+        <span class="spacer"></span>
+        <button class="btn btn-danger" onclick="clearKeystore()">Clear</button>
+      </div>
+      <div id="ks-summary" class="ks-summary" style="display:none;"></div>
+      <div id="ks-results" style="display:none;flex-direction:column;gap:16px;margin-top:8px;"></div>
     </div>
 
   </div><!-- .content -->

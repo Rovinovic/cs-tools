@@ -1910,6 +1910,654 @@ function clearPem() {
   r.style.display = 'none'; r.innerHTML = '';
 }
 
+/* ── Keystore / Truststore Viewer ── */
+const KEYSTORE = (() => {
+
+  // Detect file format from magic bytes
+  function detectFormat(buf) {
+    const u8 = new Uint8Array(buf);
+    // JKS magic: 0xFEEDFEED
+    if (u8.length > 4 && u8[0] === 0xFE && u8[1] === 0xED && u8[2] === 0xFE && u8[3] === 0xED) return 'jks';
+    // PEM text
+    if (u8.length > 10) {
+      const head = new TextDecoder().decode(u8.slice(0, 30));
+      if (head.includes('-----BEGIN')) return 'pem';
+    }
+    // PKCS#12: starts with ASN.1 SEQUENCE
+    if (u8.length > 2 && u8[0] === 0x30) return 'p12';
+    return 'unknown';
+  }
+
+  // ── JKS Parser ──
+  // JKS stores trusted certs in the clear; password only for integrity check.
+  function parseJKS(buf) {
+    const dv = new DataView(buf);
+    const u8 = new Uint8Array(buf);
+    let pos = 0;
+
+    const magic = dv.getUint32(pos); pos += 4;
+    if (magic !== 0xFEEDFEED) throw new Error('Not a valid JKS file (bad magic bytes).');
+
+    const version = dv.getUint32(pos); pos += 4;
+    const entryCount = dv.getUint32(pos); pos += 4;
+
+    const entries = [];
+    for (let e = 0; e < entryCount; e++) {
+      const tag = dv.getUint32(pos); pos += 4; // 1=privateKey, 2=trustedCert
+
+      // Alias (UTF-16 length-prefixed)
+      const aliasLen = dv.getUint16(pos); pos += 2;
+      const aliasBytes = u8.slice(pos, pos + aliasLen);
+      const alias = new TextDecoder().decode(aliasBytes);
+      pos += aliasLen;
+
+      // Timestamp (8 bytes, ms since epoch)
+      const tsHi = dv.getUint32(pos); pos += 4;
+      const tsLo = dv.getUint32(pos); pos += 4;
+      const timestamp = new Date(tsHi * 0x100000000 + tsLo);
+
+      const derCerts = [];
+
+      if (tag === 2) {
+        // Trusted certificate entry
+        const certTypeLen = dv.getUint16(pos); pos += 2;
+        pos += certTypeLen; // skip cert type string ("X.509")
+        const certDataLen = dv.getUint32(pos); pos += 4;
+        derCerts.push(new Uint8Array(buf.slice(pos, pos + certDataLen)));
+        pos += certDataLen;
+      } else if (tag === 1) {
+        // Private key entry — skip encrypted key, read cert chain
+        const keyLen = dv.getUint32(pos); pos += 4;
+        pos += keyLen; // skip encrypted private key
+        const chainLen = dv.getUint32(pos); pos += 4;
+        for (let c = 0; c < chainLen; c++) {
+          const cTypeLen = dv.getUint16(pos); pos += 2;
+          pos += cTypeLen;
+          const cDataLen = dv.getUint32(pos); pos += 4;
+          derCerts.push(new Uint8Array(buf.slice(pos, pos + cDataLen)));
+          pos += cDataLen;
+        }
+      }
+
+      entries.push({
+        alias,
+        type: tag === 2 ? 'Trusted Certificate' : 'Private Key + Certificate Chain',
+        timestamp,
+        derCerts,
+      });
+    }
+    return entries;
+  }
+
+  // ── PKCS#12 Parser ──
+  // Implements PKCS#12 KDF (RFC 7292 App B) + 3DES-CBC for legacy keystores.
+
+  // SHA-1 (sync, for KDF — Web Crypto is async so we need our own for the tight KDF loop)
+  function sha1(data) {
+    let h0 = 0x67452301, h1 = 0xEFCDAB89, h2 = 0x98BADCFE, h3 = 0x10325476, h4 = 0xC3D2E1F0;
+    const msg = new Uint8Array(data);
+    const bitLen = msg.length * 8;
+    // Pre-processing: padding
+    const padded = new Uint8Array(Math.ceil((msg.length + 9) / 64) * 64);
+    padded.set(msg);
+    padded[msg.length] = 0x80;
+    const dv = new DataView(padded.buffer);
+    dv.setUint32(padded.length - 4, bitLen, false);
+
+    function rotl(n, s) { return ((n << s) | (n >>> (32 - s))) >>> 0; }
+
+    for (let i = 0; i < padded.length; i += 64) {
+      const w = new Uint32Array(80);
+      for (let j = 0; j < 16; j++) w[j] = dv.getUint32(i + j * 4, false);
+      for (let j = 16; j < 80; j++) w[j] = rotl(w[j-3] ^ w[j-8] ^ w[j-14] ^ w[j-16], 1);
+
+      let a = h0, b = h1, c = h2, d = h3, e = h4;
+      for (let j = 0; j < 80; j++) {
+        let f, k;
+        if (j < 20)      { f = (b & c) | ((~b) & d); k = 0x5A827999; }
+        else if (j < 40) { f = b ^ c ^ d;             k = 0x6ED9EBA1; }
+        else if (j < 60) { f = (b & c) | (b & d) | (c & d); k = 0x8F1BBCDC; }
+        else              { f = b ^ c ^ d;             k = 0xCA62C1D6; }
+        const temp = (rotl(a, 5) + f + e + k + w[j]) >>> 0;
+        e = d; d = c; c = rotl(b, 30); b = a; a = temp;
+      }
+      h0 = (h0 + a) >>> 0; h1 = (h1 + b) >>> 0; h2 = (h2 + c) >>> 0;
+      h3 = (h3 + d) >>> 0; h4 = (h4 + e) >>> 0;
+    }
+    const out = new Uint8Array(20);
+    const odv = new DataView(out.buffer);
+    odv.setUint32(0, h0); odv.setUint32(4, h1); odv.setUint32(8, h2);
+    odv.setUint32(12, h3); odv.setUint32(16, h4);
+    return out;
+  }
+
+  // PKCS#12 KDF (RFC 7292 Appendix B)
+  function pkcs12KDF(password, salt, iterations, id, keyLen) {
+    const v = 64; // SHA-1 block size
+    const u = 20; // SHA-1 digest size
+
+    // D = id repeated v times
+    const D = new Uint8Array(v);
+    D.fill(id);
+
+    // Convert password to BMPString (big-endian UTF-16) + 2 null bytes
+    const passBytes = new Uint8Array(password.length * 2 + 2);
+    for (let i = 0; i < password.length; i++) {
+      const code = password.charCodeAt(i);
+      passBytes[i * 2] = (code >> 8) & 0xff;
+      passBytes[i * 2 + 1] = code & 0xff;
+    }
+    // Last 2 bytes are already 0
+
+    function fillAndCeil(input) {
+      if (input.length === 0) return new Uint8Array(0);
+      const len = Math.ceil(input.length / v) * v;
+      const out = new Uint8Array(len);
+      for (let i = 0; i < len; i++) out[i] = input[i % input.length];
+      return out;
+    }
+
+    const S = fillAndCeil(salt);
+    const P = fillAndCeil(passBytes);
+    const I = new Uint8Array(S.length + P.length);
+    I.set(S); I.set(P, S.length);
+
+    let result = new Uint8Array(0);
+    while (result.length < keyLen) {
+      // Hash: SHA1(D || I) iterated
+      const toHash = new Uint8Array(v + I.length);
+      toHash.set(D); toHash.set(I, v);
+      let A = sha1(toHash);
+      for (let i = 1; i < iterations; i++) A = sha1(A);
+
+      // Append A to result
+      const newResult = new Uint8Array(result.length + A.length);
+      newResult.set(result); newResult.set(A, result.length);
+      result = newResult;
+
+      if (result.length >= keyLen) break;
+
+      // Update I: B = A repeated to v bytes, then I_j = (I_j + B + 1) mod 2^v
+      const B = new Uint8Array(v);
+      for (let i = 0; i < v; i++) B[i] = A[i % u];
+      for (let j = 0; j < I.length; j += v) {
+        let carry = 1;
+        for (let k = v - 1; k >= 0; k--) {
+          const sum = I[j + k] + B[k] + carry;
+          I[j + k] = sum & 0xff;
+          carry = sum >> 8;
+        }
+      }
+    }
+    return result.slice(0, keyLen);
+  }
+
+  // ── DES Implementation (for 3DES-CBC) ──
+  // Initial permutation table
+  const IP = [58,50,42,34,26,18,10,2,60,52,44,36,28,20,12,4,62,54,46,38,30,22,14,6,64,56,48,40,32,24,16,8,
+    57,49,41,33,25,17,9,1,59,51,43,35,27,19,11,3,61,53,45,37,29,21,13,5,63,55,47,39,31,23,15,7];
+  const FP = [40,8,48,16,56,24,64,32,39,7,47,15,55,23,63,31,38,6,46,14,54,22,62,30,37,5,45,13,53,21,61,29,
+    36,4,44,12,52,20,60,28,35,3,43,11,51,19,59,27,34,2,42,10,50,18,58,26,33,1,41,9,49,17,57,25];
+  const E = [32,1,2,3,4,5,4,5,6,7,8,9,8,9,10,11,12,13,12,13,14,15,16,17,16,17,18,19,20,21,20,21,22,23,24,25,
+    24,25,26,27,28,29,28,29,30,31,32,1];
+  const P = [16,7,20,21,29,12,28,17,1,15,23,26,5,18,31,10,2,8,24,14,32,27,3,9,19,13,30,6,22,11,4,25];
+  const S = [
+    [14,4,13,1,2,15,11,8,3,10,6,12,5,9,0,7,0,15,7,4,14,2,13,1,10,6,12,11,9,5,3,8,4,1,14,8,13,6,2,11,15,12,9,7,3,10,5,0,15,12,8,2,4,9,1,7,5,11,3,14,10,0,6,13],
+    [15,1,8,14,6,11,3,4,9,7,2,13,12,0,5,10,3,13,4,7,15,2,8,14,12,0,1,10,6,9,11,5,0,14,7,11,10,4,13,1,5,8,12,6,9,3,2,15,13,8,10,1,3,15,4,2,11,6,7,12,0,5,14,9],
+    [10,0,9,14,6,3,15,5,1,13,12,7,11,4,2,8,13,7,0,9,3,4,6,10,2,8,5,14,12,11,15,1,13,6,4,9,8,15,3,0,11,1,2,12,5,10,14,7,1,10,13,0,6,9,8,7,4,15,14,3,11,5,2,12],
+    [7,13,14,3,0,6,9,10,1,2,8,5,11,12,4,15,13,8,11,5,6,15,0,3,4,7,2,12,1,10,14,9,10,6,9,0,12,11,7,13,15,1,3,14,5,2,8,4,3,15,0,6,10,1,13,8,9,4,5,11,12,7,2,14],
+    [2,12,4,1,7,10,11,6,8,5,3,15,13,0,14,9,14,11,2,12,4,7,13,1,5,0,15,10,3,9,8,6,4,2,1,11,10,13,7,8,15,9,12,5,6,3,0,14,11,8,12,7,1,14,2,13,6,15,0,9,10,4,5,3],
+    [12,1,10,15,9,2,6,8,0,13,3,4,14,7,5,11,10,15,4,2,7,12,9,5,6,1,13,14,0,11,3,8,9,14,15,5,2,8,12,3,7,0,4,10,1,13,11,6,4,3,2,12,9,5,15,10,11,14,1,7,6,0,8,13],
+    [4,11,2,14,15,0,8,13,3,12,9,7,5,10,6,1,13,0,11,7,4,9,1,10,14,3,5,12,2,15,8,6,1,4,11,13,12,3,7,14,10,15,6,8,0,5,9,2,6,11,13,8,1,4,10,7,9,5,0,15,14,2,3,12],
+    [13,2,8,4,6,15,11,1,10,9,3,14,5,0,12,7,1,15,13,8,10,3,7,4,12,5,6,2,0,14,9,11,7,0,9,3,4,6,10,2,8,5,14,12,11,15,1,13,11,14,1,7,4,0,9,12,14,2,3,5,10,15,6,8]
+  ];
+  const PC1 = [57,49,41,33,25,17,9,1,58,50,42,34,26,18,10,2,59,51,43,35,27,19,11,3,60,52,44,36,
+    63,55,47,39,31,23,15,7,62,54,46,38,30,22,14,6,61,53,45,37,29,21,13,5,28,20,12,4];
+  const PC2 = [14,17,11,24,1,5,3,28,15,6,21,10,23,19,12,4,26,8,16,7,27,20,13,2,41,52,31,37,47,55,30,40,51,45,33,48,44,49,39,56,34,53,46,42,50,36,29,32];
+  const SHIFTS = [1,1,2,2,2,2,2,2,1,2,2,2,2,2,2,1];
+
+  function permute(block, table, n) {
+    const out = new Uint8Array(Math.ceil(table.length / 8));
+    for (let i = 0; i < table.length; i++) {
+      const srcBit = table[i] - 1;
+      const srcByte = Math.floor(srcBit / 8);
+      const srcOffset = 7 - (srcBit % 8);
+      if (block[srcByte] & (1 << srcOffset)) {
+        const dstByte = Math.floor(i / 8);
+        const dstOffset = 7 - (i % 8);
+        out[dstByte] |= (1 << dstOffset);
+      }
+    }
+    return out;
+  }
+
+  function desGenerateSubkeys(key8) {
+    const pc1 = permute(key8, PC1);
+    let C = 0, D = 0;
+    for (let i = 0; i < 28; i++) {
+      const byte = Math.floor(i / 8);
+      const bit = 7 - (i % 8);
+      if (pc1[byte] & (1 << bit)) C |= (1 << (27 - i));
+    }
+    for (let i = 0; i < 28; i++) {
+      const byte = Math.floor((i + 28) / 8);
+      const bit = 7 - ((i + 28) % 8);
+      if (pc1[byte] & (1 << bit)) D |= (1 << (27 - i));
+    }
+
+    const subkeys = [];
+    for (let round = 0; round < 16; round++) {
+      const shift = SHIFTS[round];
+      C = ((C << shift) | (C >>> (28 - shift))) & 0x0FFFFFFF;
+      D = ((D << shift) | (D >>> (28 - shift))) & 0x0FFFFFFF;
+
+      const cd = new Uint8Array(7);
+      for (let i = 0; i < 28; i++) {
+        if (C & (1 << (27 - i))) {
+          const byte = Math.floor(i / 8);
+          cd[byte] |= (1 << (7 - (i % 8)));
+        }
+      }
+      for (let i = 0; i < 28; i++) {
+        if (D & (1 << (27 - i))) {
+          const bit = i + 28;
+          const byte = Math.floor(bit / 8);
+          cd[byte] |= (1 << (7 - (bit % 8)));
+        }
+      }
+      subkeys.push(permute(cd, PC2));
+    }
+    return subkeys;
+  }
+
+  function desProcessBlock(block8, subkeys, decrypt) {
+    const ip = permute(block8, IP);
+    let L = 0, R = 0;
+    for (let i = 0; i < 32; i++) {
+      const byte = Math.floor(i / 8);
+      const bit = 7 - (i % 8);
+      if (ip[byte] & (1 << bit)) L |= (1 << (31 - i));
+    }
+    for (let i = 0; i < 32; i++) {
+      const byte = Math.floor((i + 32) / 8);
+      const bit = 7 - ((i + 32) % 8);
+      if (ip[byte] & (1 << bit)) R |= (1 << (31 - i));
+    }
+
+    for (let round = 0; round < 16; round++) {
+      const sk = decrypt ? subkeys[15 - round] : subkeys[round];
+      // Expand R
+      const rBytes = new Uint8Array(4);
+      rBytes[0] = (R >>> 24) & 0xff; rBytes[1] = (R >>> 16) & 0xff;
+      rBytes[2] = (R >>> 8) & 0xff; rBytes[3] = R & 0xff;
+      const expanded = permute(rBytes, E);
+
+      // XOR with subkey
+      for (let i = 0; i < 6; i++) expanded[i] ^= sk[i];
+
+      // S-box substitution
+      let sOut = 0;
+      for (let i = 0; i < 8; i++) {
+        const offset = i * 6;
+        let bits6 = 0;
+        for (let b = 0; b < 6; b++) {
+          const byteIdx = Math.floor((offset + b) / 8);
+          const bitIdx = 7 - ((offset + b) % 8);
+          if (expanded[byteIdx] & (1 << bitIdx)) bits6 |= (1 << (5 - b));
+        }
+        const row = ((bits6 >> 5) << 1) | (bits6 & 1);
+        const col = (bits6 >> 1) & 0xf;
+        sOut = (sOut << 4) | S[i][row * 16 + col];
+      }
+
+      // P permutation
+      const sBytes = new Uint8Array(4);
+      sBytes[0] = (sOut >>> 24) & 0xff; sBytes[1] = (sOut >>> 16) & 0xff;
+      sBytes[2] = (sOut >>> 8) & 0xff; sBytes[3] = sOut & 0xff;
+      const pOut = permute(sBytes, P);
+      let f = 0;
+      for (let i = 0; i < 4; i++) f = (f << 8) | pOut[i];
+
+      const newR = (L ^ f) >>> 0;
+      L = R;
+      R = newR;
+    }
+
+    // Combine R||L (swapped) and final permutation
+    const rl = new Uint8Array(8);
+    rl[0] = (R >>> 24) & 0xff; rl[1] = (R >>> 16) & 0xff;
+    rl[2] = (R >>> 8) & 0xff; rl[3] = R & 0xff;
+    rl[4] = (L >>> 24) & 0xff; rl[5] = (L >>> 16) & 0xff;
+    rl[6] = (L >>> 8) & 0xff; rl[7] = L & 0xff;
+    return permute(rl, FP);
+  }
+
+  function tripleDES_CBC_decrypt(data, key24, iv8) {
+    const k1 = key24.slice(0, 8), k2 = key24.slice(8, 16), k3 = key24.slice(16, 24);
+    const sk1 = desGenerateSubkeys(k1);
+    const sk2 = desGenerateSubkeys(k2);
+    const sk3 = desGenerateSubkeys(k3);
+    const out = new Uint8Array(data.length);
+    let prevCipher = iv8.slice();
+
+    for (let i = 0; i < data.length; i += 8) {
+      const block = data.slice(i, i + 8);
+      // 3DES decrypt: D_k1(E_k2(D_k3(block)))
+      let tmp = desProcessBlock(block, sk3, true);
+      tmp = desProcessBlock(tmp, sk2, false);
+      tmp = desProcessBlock(tmp, sk1, true);
+      // XOR with previous ciphertext (CBC)
+      for (let j = 0; j < 8; j++) out[i + j] = tmp[j] ^ prevCipher[j];
+      prevCipher = block;
+    }
+
+    // Remove PKCS#5/PKCS#7 padding
+    const padLen = out[out.length - 1];
+    if (padLen > 0 && padLen <= 8) {
+      return out.slice(0, out.length - padLen);
+    }
+    return out;
+  }
+
+  // Parse PKCS#12 / PFX
+  function parsePKCS12(buf, password) {
+    const u8 = new Uint8Array(buf);
+    const root = PEM.parseDER(u8, 0, u8.length);
+    if (!root.length || !root[0].children) throw new Error('Invalid PKCS#12 structure.');
+
+    const pfx = root[0];
+    if (!pfx.children || pfx.children.length < 2) throw new Error('Invalid PFX structure.');
+
+    // version should be 3
+    const authSafeContent = pfx.children[1]; // ContentInfo
+    if (!authSafeContent.children || authSafeContent.children.length < 2)
+      throw new Error('Missing AuthenticatedSafe.');
+
+    // Get the authSafe data (may be wrapped in [0] EXPLICIT)
+    let authSafeData;
+    const contentNode = authSafeContent.children[1];
+    if (contentNode.tag === 0xa0 || (contentNode.tag & 0x80)) {
+      // EXPLICIT wrapper
+      const inner = PEM.parseDER(contentNode.bytes, 0, contentNode.bytes.length);
+      if (inner.length && inner[0].tag === 0x04) {
+        authSafeData = inner[0].bytes;
+      } else if (inner.length) {
+        authSafeData = inner[0].bytes;
+      }
+    } else if (contentNode.tag === 0x04) {
+      authSafeData = contentNode.bytes;
+    }
+    if (!authSafeData) throw new Error('Could not read AuthenticatedSafe data.');
+
+    // AuthenticatedSafe = SEQUENCE of ContentInfo
+    const authSafe = PEM.parseDER(authSafeData, 0, authSafeData.length);
+    if (!authSafe.length || !authSafe[0].children) throw new Error('Invalid AuthenticatedSafe.');
+
+    const entries = [];
+
+    for (const contentInfo of authSafe[0].children) {
+      if (!contentInfo.children || contentInfo.children.length < 2) continue;
+      const oid = PEM.readOID(contentInfo.children[0].bytes);
+
+      let safeBagsBytes;
+
+      if (oid === '1.2.840.113549.1.7.1') {
+        // pkcs7-data (unencrypted) — EXPLICIT [0] OCTET STRING
+        const wrapper = contentInfo.children[1];
+        const inner = PEM.parseDER(wrapper.bytes, 0, wrapper.bytes.length);
+        if (inner.length && inner[0].tag === 0x04) safeBagsBytes = inner[0].bytes;
+
+      } else if (oid === '1.2.840.113549.1.7.6') {
+        // pkcs7-encryptedData
+        if (!password) throw new Error('PKCS#12 file is encrypted. Please provide a password.');
+        const wrapper = contentInfo.children[1];
+        const inner = PEM.parseDER(wrapper.bytes, 0, wrapper.bytes.length);
+        if (!inner.length || !inner[0].children) continue;
+        const encData = inner[0]; // EncryptedData
+        // version + EncryptedContentInfo
+        const encContentInfo = encData.children[1];
+        if (!encContentInfo.children || encContentInfo.children.length < 3) continue;
+
+        // contentEncryptionAlgorithm
+        const algoSeq = encContentInfo.children[1];
+        if (!algoSeq.children || algoSeq.children.length < 2) continue;
+        const algoOid = PEM.readOID(algoSeq.children[0].bytes);
+
+        // Parse PBE parameters
+        const pbeParams = algoSeq.children[1];
+        if (!pbeParams.children || pbeParams.children.length < 2) continue;
+        const salt = pbeParams.children[0].bytes;
+        let iterations = 0;
+        const iterBytes = pbeParams.children[1].bytes;
+        for (let i = 0; i < iterBytes.length; i++) iterations = iterations * 256 + iterBytes[i];
+
+        // Get encrypted content (may be IMPLICIT [0])
+        const encContentNode = encContentInfo.children[2];
+        const encBytes = encContentNode.bytes;
+
+        // Derive key and IV using PKCS#12 KDF
+        let decrypted;
+        if (algoOid === '1.2.840.113549.1.12.1.3' || algoOid === '1.2.840.113549.1.12.1.6') {
+          // pbeWithSHA1And3-KeyTripleDES-CBC or pbeWithSHA1And40BitRC2-CBC
+          // For 3DES: 24-byte key, 8-byte IV
+          const keyLen = algoOid.endsWith('.3') ? 24 : 5;
+          const key = pkcs12KDF(password, salt, iterations, 1, keyLen);
+          const iv = pkcs12KDF(password, salt, iterations, 2, 8);
+
+          if (keyLen === 24) {
+            decrypted = tripleDES_CBC_decrypt(encBytes, key, iv);
+          } else {
+            // RC2 not implemented — skip this container
+            continue;
+          }
+        } else {
+          continue; // Unknown algorithm
+        }
+
+        safeBagsBytes = decrypted;
+      }
+
+      if (!safeBagsBytes) continue;
+
+      // Parse SafeContents = SEQUENCE of SafeBag
+      const safeBags = PEM.parseDER(safeBagsBytes, 0, safeBagsBytes.length);
+      if (!safeBags.length || !safeBags[0].children) continue;
+
+      for (const safeBag of safeBags[0].children) {
+        if (!safeBag.children || safeBag.children.length < 2) continue;
+        const bagOid = PEM.readOID(safeBag.children[0].bytes);
+
+        // Extract friendly name from bag attributes if present
+        let alias = '';
+        if (safeBag.children.length > 2) {
+          const attrs = safeBag.children[2];
+          const attrNodes = (attrs.tag & 0x20) ? (attrs.children || PEM.parseDER(attrs.bytes, 0, attrs.bytes.length)) : PEM.parseDER(attrs.bytes, 0, attrs.bytes.length);
+          for (const attr of attrNodes) {
+            if (!attr.children || attr.children.length < 2) continue;
+            const attrOid = PEM.readOID(attr.children[0].bytes);
+            if (attrOid === '1.2.840.113549.1.9.20') {
+              // friendlyName (BMPString)
+              const valSet = attr.children[1];
+              const valNode = valSet.children ? valSet.children[0] : valSet;
+              const bmpBytes = valNode.bytes;
+              let name = '';
+              for (let i = 0; i < bmpBytes.length; i += 2) {
+                name += String.fromCharCode((bmpBytes[i] << 8) | bmpBytes[i + 1]);
+              }
+              alias = name;
+            }
+          }
+        }
+
+        if (bagOid === '1.2.840.113549.1.12.10.1.1') {
+          // keyBag or pkcs8ShroudedKeyBag — private key, just note it
+          entries.push({ alias: alias || 'Private Key', type: 'Private Key', timestamp: null, derCerts: [] });
+        } else if (bagOid === '1.2.840.113549.1.12.10.1.2') {
+          // pkcs8ShroudedKeyBag
+          entries.push({ alias: alias || 'Private Key', type: 'Private Key (Encrypted)', timestamp: null, derCerts: [] });
+        } else if (bagOid === '1.2.840.113549.1.12.10.1.3') {
+          // certBag
+          const bagValue = safeBag.children[1];
+          const inner = PEM.parseDER(bagValue.bytes, 0, bagValue.bytes.length);
+          if (inner.length && inner[0].children && inner[0].children.length >= 2) {
+            const certContent = inner[0].children[1];
+            const certInner = PEM.parseDER(certContent.bytes, 0, certContent.bytes.length);
+            if (certInner.length && certInner[0].tag === 0x04) {
+              entries.push({
+                alias: alias || 'Certificate',
+                type: 'Certificate',
+                timestamp: null,
+                derCerts: [new Uint8Array(certInner[0].bytes)],
+              });
+            }
+          }
+        }
+      }
+    }
+    return entries;
+  }
+
+  // ── PEM bundle parser ──
+  function parsePEMBundle(text) {
+    const blocks = text.match(/-----BEGIN CERTIFICATE-----[\s\S]*?-----END CERTIFICATE-----/g);
+    if (!blocks || !blocks.length) throw new Error('No PEM certificates found.');
+    return blocks.map((block, i) => {
+      const b64 = block.replace(/-----BEGIN CERTIFICATE-----/, '').replace(/-----END CERTIFICATE-----/, '').replace(/\s/g, '');
+      const raw = atob(b64);
+      const der = new Uint8Array(raw.length);
+      for (let j = 0; j < raw.length; j++) der[j] = raw.charCodeAt(j);
+      return { alias: 'Certificate ' + (i + 1), type: 'Certificate', timestamp: null, derCerts: [der] };
+    });
+  }
+
+  return { detectFormat, parseJKS, parsePKCS12, parsePEMBundle };
+})();
+
+async function keystoreDecode() {
+  const fileInput = document.getElementById('ks-file');
+  const passInput = document.getElementById('ks-pass');
+  const resultsEl = document.getElementById('ks-results');
+  const summaryEl = document.getElementById('ks-summary');
+  setError('ks-err', '');
+  resultsEl.innerHTML = '';
+  resultsEl.style.display = 'none';
+  summaryEl.style.display = 'none';
+
+  if (!fileInput.files.length) { setError('ks-err', 'Please select a keystore file.'); return; }
+
+  const file = fileInput.files[0];
+  const buf = await file.arrayBuffer();
+  const format = KEYSTORE.detectFormat(buf);
+
+  if (format === 'unknown') { setError('ks-err', 'Unrecognized file format. Supported: JKS, PKCS#12/PFX, PEM.'); return; }
+
+  let entries;
+  try {
+    if (format === 'jks') {
+      entries = KEYSTORE.parseJKS(buf);
+    } else if (format === 'p12') {
+      entries = KEYSTORE.parsePKCS12(buf, passInput.value);
+    } else {
+      const text = new TextDecoder().decode(new Uint8Array(buf));
+      entries = KEYSTORE.parsePEMBundle(text);
+    }
+  } catch (e) {
+    setError('ks-err', e.message); return;
+  }
+
+  if (!entries.length) { setError('ks-err', 'No entries found in the keystore.'); return; }
+
+  const certCount = entries.filter(e => e.derCerts.length > 0).reduce((s, e) => s + e.derCerts.length, 0);
+  const keyCount = entries.filter(e => e.type.includes('Private Key')).length;
+  summaryEl.innerHTML = `<strong>${entries.length}</strong> entries · <strong>${certCount}</strong> certificate${certCount !== 1 ? 's' : ''}${keyCount ? ` · <strong>${keyCount}</strong> private key${keyCount !== 1 ? 's' : ''}` : ''} · Format: <strong>${format.toUpperCase()}</strong>`;
+  summaryEl.style.display = 'block';
+
+  const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const nameFieldLabels = {
+    CN: 'Common Name', O: 'Organization', OU: 'Org Unit',
+    L: 'Locality', ST: 'State', C: 'Country',
+    emailAddress: 'Email', DC: 'Domain Component',
+  };
+  const nameFieldOrder = ['CN', 'O', 'OU', 'L', 'ST', 'C', 'emailAddress', 'DC'];
+
+  function renderNameFields(nameObj) {
+    const f = nameObj.fields;
+    const allKeys = nameFieldOrder.filter(k => f[k]).concat(Object.keys(f).filter(k => !nameFieldOrder.includes(k)));
+    return allKeys.map(k => {
+      const label = nameFieldLabels[k] || k;
+      return `<div class="pem-field"><span class="pem-label">${esc(label)}</span><span class="pem-value">${esc(f[k])}</span></div>`;
+    }).join('');
+  }
+
+  let html = '';
+  for (let ei = 0; ei < entries.length; ei++) {
+    const entry = entries[ei];
+    const typeBadge = entry.type.includes('Private Key')
+      ? '<span class="ks-badge ks-badge-key">Private Key</span>'
+      : '<span class="ks-badge ks-badge-cert">Certificate</span>';
+
+    html += `<div class="ks-entry">
+      <div class="ks-entry-header">
+        ${typeBadge}
+        <span class="ks-alias">${esc(entry.alias)}</span>
+        ${entry.timestamp ? `<span class="ks-ts">${entry.timestamp.toLocaleDateString()}</span>` : ''}
+      </div>`;
+
+    if (entry.derCerts.length > 0) {
+      const certs = await PEM.decodeDER(entry.derCerts);
+      for (let ci = 0; ci < certs.length; ci++) {
+        const cert = certs[ci];
+        const statusCls = cert.isExpired ? 'pem-expired' : cert.isNotYetValid ? 'pem-expired' : 'pem-valid';
+        const statusMsg = cert.isExpired ? 'EXPIRED' : cert.isNotYetValid ? 'NOT YET VALID' : 'VALID';
+        const chainLabel = entry.derCerts.length > 1 ? `<div class="pem-cert-title">Chain Certificate ${ci + 1} of ${entry.derCerts.length}</div>` : '';
+
+        html += `${chainLabel}<div class="pem-cert">
+          <div class="pem-status ${statusCls}">${statusMsg}</div>
+          <div class="pem-section"><div class="pem-section-title">Subject</div>${renderNameFields(cert.subject)}</div>
+          ${cert.sans.length ? `<div class="pem-section"><div class="pem-section-title">SANs (${cert.sans.length})</div><div class="pem-sans">${cert.sans.map(s => `<span class="pem-san-tag">${esc(s)}</span>`).join('')}</div></div>` : ''}
+          <div class="pem-section"><div class="pem-section-title">Issuer</div>${renderNameFields(cert.issuer)}</div>
+          <div class="pem-section"><div class="pem-section-title">Validity</div>
+            <div class="pem-field"><span class="pem-label">Valid From</span><span class="pem-value">${cert.notBefore ? cert.notBefore.toUTCString() : 'N/A'}</span></div>
+            <div class="pem-field"><span class="pem-label">Valid To</span><span class="pem-value">${cert.notAfter ? cert.notAfter.toUTCString() : 'N/A'}</span></div>
+          </div>
+          <div class="pem-section"><div class="pem-section-title">Details</div>
+            <div class="pem-field"><span class="pem-label">Version</span><span class="pem-value">V${cert.version}</span></div>
+            <div class="pem-field"><span class="pem-label">Serial</span><span class="pem-value" style="word-break:break-all;">${esc(String(cert.serial))}</span></div>
+            <div class="pem-field"><span class="pem-label">Sig Algo</span><span class="pem-value">${esc(cert.sigAlgo)}</span></div>
+            <div class="pem-field"><span class="pem-label">Public Key</span><span class="pem-value">${esc(cert.pubKeyInfo.algorithm)} (${cert.pubKeyInfo.bits} bit)</span></div>
+            ${cert.basicConstraints ? `<div class="pem-field"><span class="pem-label">Basic Constraints</span><span class="pem-value">${esc(cert.basicConstraints)}</span></div>` : ''}
+            ${cert.keyUsage.length ? `<div class="pem-field"><span class="pem-label">Key Usage</span><span class="pem-value">${cert.keyUsage.map(esc).join(', ')}</span></div>` : ''}
+            ${cert.extKeyUsage.length ? `<div class="pem-field"><span class="pem-label">Ext Key Usage</span><span class="pem-value">${cert.extKeyUsage.map(esc).join(', ')}</span></div>` : ''}
+          </div>
+          <div class="pem-section"><div class="pem-section-title">Fingerprints</div>
+            <div class="pem-field"><span class="pem-label">SHA-1</span><span class="pem-value pem-hash">${cert.sha1}</span>
+              <button class="btn btn-secondary" style="padding:2px 10px;font-size:0.7rem;flex-shrink:0;" onclick="copyVal('${cert.sha1.replace(/'/g, "\\'")}')">Copy</button></div>
+            <div class="pem-field"><span class="pem-label">SHA-256</span><span class="pem-value pem-hash">${cert.sha256}</span>
+              <button class="btn btn-secondary" style="padding:2px 10px;font-size:0.7rem;flex-shrink:0;" onclick="copyVal('${cert.sha256.replace(/'/g, "\\'")}')">Copy</button></div>
+          </div>
+        </div>`;
+      }
+    } else {
+      html += '<div class="ks-no-cert">Private key data (encrypted) — certificate not available in this entry.</div>';
+    }
+
+    html += '</div>';
+  }
+
+  resultsEl.innerHTML = html;
+  resultsEl.style.display = 'flex';
+}
+
+function clearKeystore() {
+  document.getElementById('ks-file').value = '';
+  document.getElementById('ks-pass').value = '';
+  setError('ks-err', '');
+  const r = document.getElementById('ks-results');
+  r.style.display = 'none'; r.innerHTML = '';
+  document.getElementById('ks-summary').style.display = 'none';
+}
+
+
 /* ── Theme toggle ── */
 function toggleTheme() {
   const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
